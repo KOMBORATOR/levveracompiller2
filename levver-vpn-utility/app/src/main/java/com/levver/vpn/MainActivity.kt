@@ -48,7 +48,7 @@ class MainActivity:ComponentActivity(){
    var tab by remember { mutableIntStateOf(0) }
    var notice by remember { mutableStateOf("Добавь профиль, чтобы начать.") }
    var input by remember { mutableStateOf("") }
-   fun import(raw:String){
+   fun importProfileText(raw:String){
     val parsed=ProfileParser.parse(raw)
     if(parsed.isEmpty()) notice="Не удалось распознать ссылку. Проверь формат."
     else {
@@ -59,8 +59,8 @@ class MainActivity:ComponentActivity(){
      input=""
     }
    }
-   val qr=rememberLauncherForActivityResult(ScanContract()){ result->result.contents?.let{import(it)} }
-   LaunchedEffect(Unit){ intent?.getStringExtra(Intent.EXTRA_TEXT)?.let{import(it)} }
+   val qr=rememberLauncherForActivityResult(ScanContract()){ result->result.contents?.let{importProfileText(it)} }
+   LaunchedEffect(Unit){ intent?.getStringExtra(Intent.EXTRA_TEXT)?.let{importProfileText(it)} }
    MaterialTheme(colorScheme=darkColorScheme(primary=Sky,onPrimary=Navy,background=Navy,surface=Panel,onSurface=Color.White)){
     Scaffold(containerColor=Navy,bottomBar={
      NavigationBar(containerColor=Color(0xFF0B2340)){
@@ -71,7 +71,7 @@ class MainActivity:ComponentActivity(){
     }){ pad->
      when(tab){
       0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,Modifier.padding(pad))
-      1->ProfilesScreen(profiles,input,{input=it},notice,{import(input)},{pasteFromClipboard()?.let{import(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad))
+      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad))
       else->SettingsScreen(profiles.size,Modifier.padding(pad))
      }
     }
