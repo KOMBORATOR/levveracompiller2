@@ -41,7 +41,7 @@ object ProfileParser {
             return Profile(raw.hashCode().toString(), label, protocol, raw, host)
         }
         val uri = URI(raw)
-        val host = uri.host ?: if (scheme == "ss") "Shadowsocks profile" else "unknown"
+        val host = uri.host ?: if (scheme == "ss") "Shadowsocks profile" else return null
         val label = uri.rawFragment?.let { URLDecoder.decode(it, "UTF-8") }
             ?.takeIf { it.isNotBlank() } ?: "$protocol — $host"
         Profile(raw.hashCode().toString(), label, protocol, raw, host)
