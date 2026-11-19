@@ -7,6 +7,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -19,7 +21,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -94,31 +95,31 @@ class MainActivity:ComponentActivity(){
 
 @Composable private fun Header(){
  Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-  Box(Modifier.size(46.dp).background(Sky,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center){Icon(Icons.Default.Shield,null,tint=Color.White,modifier=Modifier.size(29.dp))}
-  Spacer(Modifier.width(12.dp)); Column { Text("LEVVER",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp,letterSpacing=2.sp); Text("UTILITY • SKY BLUE",color=Pale,fontSize=10.sp,letterSpacing=1.5.sp) }
-  Spacer(Modifier.weight(1f)); Text("0.5.0",color=Pale,fontSize=11.sp)
+  Image(painterResource(R.drawable.ic_levver_mark),contentDescription="LEVVER Utility",modifier=Modifier.size(42.dp))
+  Spacer(Modifier.width(12.dp)); Column { Text("LEVVER",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp,letterSpacing=2.sp); Text("UTILITY",color=Pale,fontSize=10.sp,letterSpacing=1.5.sp) }
+  Spacer(Modifier.weight(1f)); Text("0.6.0",color=Pale,fontSize=11.sp)
  }
 }
 @Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,modifier:Modifier=Modifier){
  Column(modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally){
   Header(); Spacer(Modifier.height(48.dp))
   Box(Modifier.size(164.dp).border(3.dp,Sky,CircleShape).padding(12.dp).border(1.dp,Sky.copy(alpha=.25f),CircleShape),contentAlignment=Alignment.Center){
-   Box(Modifier.size(126.dp).background(Sky,CircleShape),contentAlignment=Alignment.Center){Icon(Icons.Default.Shield,null,tint=Color.White,modifier=Modifier.size(58.dp))}
+   Box(Modifier.size(126.dp),contentAlignment=Alignment.Center){Image(painterResource(R.drawable.ic_levver_mark),contentDescription="Логотип LEVVER",modifier=Modifier.size(100.dp))}
   }
   Spacer(Modifier.height(22.dp)); Text("LEVVER UTILITY",color=Color.White,fontWeight=FontWeight.Bold,fontSize=21.sp)
   Text("Универсальный менеджер личных VPN-профилей",color=Pale,fontSize=12.sp)
   Spacer(Modifier.height(18.dp))
   Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF3A2B18)),shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()){
    Column(Modifier.padding(14.dp)){
-    Text("ALPHA • VPN ENGINE IN PROGRESS",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
+    Text("ALPHA • VPN ENGINE NOT YET CONNECTED",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
     Spacer(Modifier.height(5.dp))
-    Text("Импорт и хранение профилей работают. Реальное VPN-подключение пока не реализовано — трафик через приложение ещё не проходит.",color=Color.White,fontSize=12.sp)
+    Text("Импорт и хранение профилей работают. Реальное VPN-подключение появится после подключения и проверки VPN-движка.",color=Color.White,fontSize=12.sp)
    }
   }
   Spacer(Modifier.height(18.dp)); InfoCard("ВЫБРАННЫЙ ПРОФИЛЬ",active?.name?: "Профиль не выбран")
   Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ","Не подключён",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
-  Text("LEVVER • BUILD 0.5.0 ALPHA",color=Color(0xFF6FA6CC),fontSize=10.sp)
+  Text("LEVVER • BUILD 0.6.0 ALPHA",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
 @Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier){
@@ -157,7 +158,7 @@ class MainActivity:ComponentActivity(){
 }
 @Composable private fun SettingsScreen(count:Int,modifier:Modifier=Modifier){
  Column(modifier.fillMaxSize().padding(22.dp)){Header();Spacer(Modifier.height(24.dp));Text("Настройки",color=Color.White,fontSize=26.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(16.dp))
-  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.5.0 Alpha • Sky Blue Edition");Spacer(Modifier.height(12.dp))
+  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.6.0 Alpha • Original Utility mark");Spacer(Modifier.height(12.dp))
   InfoCard("ЛОКАЛЬНЫЕ ДАННЫЕ","Сохранено профилей: $count");Spacer(Modifier.height(12.dp))
   InfoCard("БЕЗОПАСНОСТЬ","Ссылки и конфигурации могут содержать секреты доступа. Не отправляй их посторонним.")
   Spacer(Modifier.height(12.dp))
