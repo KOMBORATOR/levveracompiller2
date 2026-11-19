@@ -60,7 +60,14 @@ class MainActivity:ComponentActivity(){
     }
    }
    val qr=rememberLauncherForActivityResult(ScanContract()){ result->result.contents?.let{importProfileText(it)} }
-   LaunchedEffect(Unit){ intent?.getStringExtra(Intent.EXTRA_TEXT)?.let{importProfileText(it)} }
+   LaunchedEffect(Unit) {
+    val sharedText = intent?.getStringExtra(Intent.EXTRA_TEXT)
+    val deepLink = intent?.dataString
+    when {
+        !sharedText.isNullOrBlank() -> importProfileText(sharedText)
+        !deepLink.isNullOrBlank() -> importProfileText(deepLink)
+    }
+   }
    MaterialTheme(colorScheme=darkColorScheme(primary=Sky,onPrimary=Navy,background=Navy,surface=Panel,onSurface=Color.White)){
     Scaffold(containerColor=Navy,bottomBar={
      NavigationBar(containerColor=Color(0xFF0B2340)){
@@ -89,7 +96,7 @@ class MainActivity:ComponentActivity(){
  Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
   Box(Modifier.size(46.dp).background(Sky,RoundedCornerShape(15.dp)),contentAlignment=Alignment.Center){Icon(Icons.Default.Shield,null,tint=Navy,modifier=Modifier.size(29.dp))}
   Spacer(Modifier.width(12.dp)); Column { Text("ЛЕВВЕР VPN",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp); Text("UTILITY",color=Pale,fontSize=11.sp,letterSpacing=3.sp) }
-  Spacer(Modifier.weight(1f)); Text("0.3.0",color=Pale,fontSize=11.sp)
+  Spacer(Modifier.weight(1f)); Text("0.4.0",color=Pale,fontSize=11.sp)
  }
 }
 @Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,modifier:Modifier=Modifier){
@@ -98,12 +105,12 @@ class MainActivity:ComponentActivity(){
   Box(Modifier.size(164.dp).border(3.dp,Sky,CircleShape).padding(12.dp).border(1.dp,Sky.copy(alpha=.25f),CircleShape),contentAlignment=Alignment.Center){
    Box(Modifier.size(126.dp).background(Sky,CircleShape),contentAlignment=Alignment.Center){Icon(Icons.Default.Shield,null,tint=Navy,modifier=Modifier.size(58.dp))}
   }
-  Spacer(Modifier.height(22.dp)); Text("ГОТОВ К РАБОТЕ",color=Color.White,fontWeight=FontWeight.Bold,fontSize=21.sp)
-  Text("Импортируй профиль для настройки подключения",color=Pale,fontSize=12.sp)
+  Spacer(Modifier.height(22.dp)); Text("ПРОФИЛИ ГОТОВЫ",color=Color.White,fontWeight=FontWeight.Bold,fontSize=21.sp)
+  Text("Импорт профилей доступен. VPN-туннель пока не активен.",color=Pale,fontSize=12.sp)
   Spacer(Modifier.height(26.dp)); InfoCard("ВЫБРАННЫЙ ПРОФИЛЬ",active?.name?:"Профиль не выбран")
   Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("СОЕДИНЕНИЕ","Не активно",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
-  Text("SKY BLUE EDITION • 0.3.0",color=Color(0xFF6FA6CC),fontSize=10.sp)
+  Text("SKY BLUE EDITION • 0.4.0",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
 @Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier){
