@@ -17,6 +17,22 @@ object ProfileParser {
     )
 
     fun parse(input: String): List<Profile> {
+        val trimmed = input.trim()
+        if (trimmed.startsWith("{")) {
+            return try {
+                val config = JSONObject(trimmed)
+                val outbounds = config.optJSONArray("outbounds") ?: return emptyList()
+                require(outbounds.length() > 0) { "No outbounds in sing-box config" }
+                val inbounds = config.optJSONArray("inbounds") ?: return emptyList()
+                require((0 until inbounds.length()).any { inbounds.getJSONObject(it).optString("type") == "tun" }) {
+                    "The sing-box config must contain a TUN inbound"
+                }
+                listOf(Profile(trimmed.hashCode().toString(), "Пользовательская sing-box конфигурация",
+                    "sing-box JSON", trimmed, "Пользовательский сервер"))
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
         val candidates = input.trim().lines().flatMap { line ->
             val value = line.trim()
             if (value.isBlank()) emptyList()
