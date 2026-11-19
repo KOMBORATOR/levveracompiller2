@@ -3,12 +3,15 @@ package com.levver.vpn
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -50,6 +53,46 @@ class MainActivity:ComponentActivity(){
    var tab by remember { mutableIntStateOf(0) }
    var notice by remember { mutableStateOf("Добавь свой сервер, чтобы создать профиль.") }
    var input by remember { mutableStateOf("") }
+   var vpnRunning by remember { mutableStateOf(false) }
+   var pendingConfig by remember { mutableStateOf<String?>(null) }
+   val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    if (result.resultCode == RESULT_OK) {
+     pendingConfig?.let { config ->
+      ContextCompat.startForegroundService(this@MainActivity,
+       Intent(this@MainActivity, LevverVpnService::class.java)
+        .setAction(LevverVpnService.ACTION_START)
+        .putExtra(LevverVpnService.EXTRA_CONFIG, config))
+      vpnRunning = true
+      notice = "Запрос на подключение отправлен. Статус появится в уведомлении LEVVER."
+     }
+    } else {
+     notice = "Android не выдал разрешение на VPN."
+    }
+   }
+   fun connectSelected() {
+    val profile = profiles.firstOrNull { it.id == selected }
+    if (profile == null) { notice = "Сначала выбери профиль."; return }
+    if (!profile.raw.trim().startsWith("{")) {
+     notice = "Для первого реального подключения импортируй полный sing-box JSON с TUN inbound. Конвертер ссылок ещё готовится."
+     return
+    }
+    pendingConfig = profile.raw
+    val permission = VpnService.prepare(this@MainActivity)
+    if (permission != null) vpnPermission.launch(permission)
+    else {
+     ContextCompat.startForegroundService(this@MainActivity,
+      Intent(this@MainActivity, LevverVpnService::class.java)
+       .setAction(LevverVpnService.ACTION_START)
+       .putExtra(LevverVpnService.EXTRA_CONFIG, profile.raw))
+     vpnRunning = true
+     notice = "Запрос на подключение отправлен. Статус появится в уведомлении LEVVER."
+    }
+   }
+   fun disconnectVpn() {
+    startService(Intent(this@MainActivity, LevverVpnService::class.java).setAction(LevverVpnService.ACTION_STOP))
+    vpnRunning = false
+    notice = "Запрошено отключение VPN."
+   }
    fun importProfileText(raw:String){
     val parsed=ProfileParser.parse(raw)
     if(parsed.isEmpty()) notice="Не удалось распознать ссылку. Проверь формат."
@@ -79,7 +122,7 @@ class MainActivity:ComponentActivity(){
      }
     }){ pad->
      when(tab){
-      0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,Modifier.padding(pad))
+      0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,vpnRunning,{connectSelected()},{disconnectVpn()},Modifier.padding(pad))
       1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad))
       else->SettingsScreen(profiles.size,Modifier.padding(pad))
      }
@@ -101,24 +144,27 @@ class MainActivity:ComponentActivity(){
   Spacer(Modifier.weight(1f)); Text("0.6.0",color=Pale,fontSize=11.sp)
  }
 }
-@Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,modifier:Modifier=Modifier){
+@Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,connected:Boolean,onConnect:()->Unit,onDisconnect:()->Unit,modifier:Modifier=Modifier){
  Column(modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally){
   Header(); Spacer(Modifier.height(48.dp))
   Box(Modifier.size(164.dp).border(3.dp,Sky,CircleShape).padding(12.dp).border(1.dp,Sky.copy(alpha=.25f),CircleShape),contentAlignment=Alignment.Center){
    Box(Modifier.size(126.dp),contentAlignment=Alignment.Center){Image(painterResource(R.drawable.ic_levver_mark),contentDescription="Логотип LEVVER",modifier=Modifier.size(100.dp))}
   }
   Spacer(Modifier.height(22.dp)); Text("LEVVER UTILITY",color=Color.White,fontWeight=FontWeight.Bold,fontSize=21.sp)
-  Text("Универсальный менеджер личных VPN-профилей",color=Pale,fontSize=12.sp)
+  Text("Универсальный VPN-клиент на sing-box",color=Pale,fontSize=12.sp)
   Spacer(Modifier.height(18.dp))
   Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF3A2B18)),shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()){
    Column(Modifier.padding(14.dp)){
-    Text("ALPHA • VPN ENGINE NOT YET CONNECTED",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
+    Text(if (connected) "VPN • START REQUESTED" else "VPN • READY FOR CONFIG",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
     Spacer(Modifier.height(5.dp))
-    Text("Импорт и хранение профилей работают. Реальное VPN-подключение появится после подключения и проверки VPN-движка.",color=Color.White,fontSize=12.sp)
+    Text("Движок sing-box подключён. Для текущего теста нужен sing-box JSON с TUN inbound. Проверь статус в системном уведомлении.",color=Color.White,fontSize=12.sp)
    }
   }
   Spacer(Modifier.height(18.dp)); InfoCard("ВЫБРАННЫЙ ПРОФИЛЬ",active?.name?: "Профиль не выбран")
-  Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ","Не подключён",Modifier.weight(1f))}
+  Spacer(Modifier.height(12.dp))
+  if (connected) Button(onClick=onDisconnect,modifier=Modifier.fillMaxWidth()) { Text("Отключить VPN") }
+  else Button(onClick=onConnect,enabled=active!=null,modifier=Modifier.fillMaxWidth()) { Text("Подключить") }
+  Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ",if (connected) "Запуск" else "Отключён",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
   Text("LEVVER • BUILD 0.6.0 ALPHA",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
