@@ -30,6 +30,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.zxing:core:3.5.3")
+    // Official sing-box Android engine (GPL-3.0-or-later)
+    implementation("com.github.singbox-android:libbox:1.14.4")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
