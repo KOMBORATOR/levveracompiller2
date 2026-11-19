@@ -5,20 +5,46 @@ import org.json.JSONObject
 import java.net.URI
 import java.net.URLDecoder
 
-data class Profile(val id:String,val name:String,val protocol:String,val raw:String,val server:String)
+data class Profile(val id: String, val name: String, val protocol: String, val raw: String, val server: String)
+
 object ProfileParser {
- fun parse(input:String):List<Profile> = input.trim().lines().flatMap { line ->
-  val s=line.trim(); if(s.isBlank()) emptyList() else if(s.startsWith("vmess://")) listOf(s) else s.split(Regex("\\s+")).filter { it.contains("://") }
- }.mapNotNull { parseOne(it) }
- private fun parseOne(raw:String):Profile? = try {
-  when {
-   raw.startsWith("vless://")->fromUri(raw,"VLESS")
-   raw.startsWith("trojan://")->fromUri(raw,"Trojan")
-   raw.startsWith("ss://")->fromUri(raw,"Shadowsocks")
-   raw.startsWith("socks://")||raw.startsWith("socks5://")->fromUri(raw,"SOCKS5")
-   raw.startsWith("vmess://")-> { val decoded=String(Base64.decode(raw.removePrefix("vmess://"),Base64.DEFAULT),Charsets.UTF_8); val j=JSONObject(decoded); val host=j.optString("add","unknown"); Profile(raw.hashCode().toString(),j.optString("ps").ifBlank { "VMess — $host" },"VMess",raw,host) }
-   else->null
-  }
- } catch(_:Exception){null}
- private fun fromUri(raw:String,protocol:String):Profile { val u=URI(raw); val host=u.host?:"unknown"; val label=u.rawFragment?.let{URLDecoder.decode(it,"UTF-8")}; return Profile(raw.hashCode().toString(),label?.takeIf{it.isNotBlank()}?:"$protocol — $host",protocol,raw,host) }
+    private val supportedSchemes = mapOf(
+        "vless" to "VLESS", "vmess" to "VMess", "trojan" to "Trojan",
+        "ss" to "Shadowsocks", "socks" to "SOCKS", "socks5" to "SOCKS5",
+        "socks5h" to "SOCKS5", "hysteria" to "Hysteria", "hysteria2" to "Hysteria2",
+        "hy2" to "Hysteria2", "tuic" to "TUIC", "anytls" to "AnyTLS",
+        "wireguard" to "WireGuard", "wg" to "WireGuard"
+    )
+
+    fun parse(input: String): List<Profile> {
+        val candidates = input.trim().lines().flatMap { line ->
+            val value = line.trim()
+            if (value.isBlank()) emptyList()
+            else if (value.startsWith("vmess://")) listOf(value)
+            else value.split(Regex("\\s+")).filter {
+                it.substringBefore("://").lowercase() in supportedSchemes
+            }
+        }
+        return candidates.mapNotNull(::parseOne).distinctBy { it.raw }
+    }
+
+    private fun parseOne(raw: String): Profile? = try {
+        val scheme = raw.substringBefore("://").lowercase()
+        val protocol = supportedSchemes[scheme] ?: return null
+        if (scheme == "vmess") {
+            val payload = raw.removePrefix("vmess://").substringBefore('#')
+            val decoded = String(Base64.decode(payload, Base64.DEFAULT), Charsets.UTF_8)
+            val json = JSONObject(decoded)
+            val host = json.optString("add").ifBlank { "unknown" }
+            val label = json.optString("ps").ifBlank { "$protocol — $host" }
+            return Profile(raw.hashCode().toString(), label, protocol, raw, host)
+        }
+        val uri = URI(raw)
+        val host = uri.host ?: if (scheme == "ss") "Shadowsocks profile" else "unknown"
+        val label = uri.rawFragment?.let { URLDecoder.decode(it, "UTF-8") }
+            ?.takeIf { it.isNotBlank() } ?: "$protocol — $host"
+        Profile(raw.hashCode().toString(), label, protocol, raw, host)
+    } catch (_: Exception) {
+        null
+    }
 }
