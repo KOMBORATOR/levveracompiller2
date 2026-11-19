@@ -28,7 +28,8 @@ object ProfileParser {
         return candidates.mapNotNull(::parseOne).distinctBy { it.raw }
     }
 
-    private fun parseOne(raw: String): Profile? = try {
+    private fun parseOne(raw: String): Profile? {
+        return try {
         val scheme = raw.substringBefore("://").lowercase()
         val protocol = supportedSchemes[scheme] ?: return null
         if (scheme == "vmess") {
@@ -44,7 +45,8 @@ object ProfileParser {
         val label = uri.rawFragment?.let { URLDecoder.decode(it, "UTF-8") }
             ?.takeIf { it.isNotBlank() } ?: "$protocol — $host"
         Profile(raw.hashCode().toString(), label, protocol, raw, host)
-    } catch (_: Exception) {
-        null
+        } catch (_: Exception) {
+            null
+        }
     }
 }
