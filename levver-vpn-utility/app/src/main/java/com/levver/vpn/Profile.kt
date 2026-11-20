@@ -2,6 +2,7 @@ package com.levver.vpn
 
 import android.util.Base64
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.URI
 import java.net.URLDecoder
 
