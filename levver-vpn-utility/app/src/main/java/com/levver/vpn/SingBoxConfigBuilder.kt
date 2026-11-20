@@ -92,7 +92,10 @@ object SingBoxConfigBuilder {
     }
 
     private fun shadowsocks(uri: URI, host: String, port: Int): JSONObject {
-        val auth=decode(uri.rawUserInfo.orEmpty())
+        val rawAuth=decode(uri.rawUserInfo.orEmpty())
+        val auth=if(rawAuth.contains(':')) rawAuth else try {
+            String(Base64.decode(rawAuth,Base64.DEFAULT),Charsets.UTF_8)
+        } catch (_:Exception) { error("Shadowsocks: неверная кодировка method:password") }
         val method=auth.substringBefore(':').takeIf { it.isNotBlank() } ?: error("Shadowsocks: ссылка должна содержать method:password@host")
         val pass=auth.substringAfter(':',"").takeIf { it.isNotBlank() } ?: error("Shadowsocks: нет пароля")
         return JSONObject().put("type","shadowsocks").put("tag","proxy").put("server",host).put("server_port",port).put("method",method).put("password",pass)
