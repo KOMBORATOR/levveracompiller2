@@ -239,7 +239,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 item.flags = 1
                 item.type = Libbox.InterfaceTypeOther
                 item.dnsServer = StringArray(emptyList())
-                item.gateway = StringArray(emptyList<String>().iterator())
+                item.gateway = StringArray(emptyList())
                 items.add(item)
             }
         } catch (e: Exception) { Log.w("LEVVER", "Interface enumeration", e) }
