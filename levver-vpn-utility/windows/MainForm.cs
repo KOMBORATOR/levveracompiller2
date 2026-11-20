@@ -93,7 +93,9 @@ public sealed class MainForm : Form
                 var type = (string?)node["type"] ?? "";
                 if (type is "direct" or "block" or "dns") continue;
                 var single = (JsonObject)root.DeepClone();
-                single["outbounds"] = new JsonArray(node.DeepClone(), new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
+                var proxy = (JsonObject)node.DeepClone();
+                proxy["tag"] ??= "proxy";
+                single["outbounds"] = new JsonArray(proxy, new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
                 single["route"] ??= new JsonObject();
                 single["route"]!["final"] = (string?)node["tag"] ?? "proxy";
                 single["inbounds"] ??= new JsonArray();
@@ -137,8 +139,30 @@ public sealed class MainForm : Form
                 case "hysteria2": case "hy2":
                     outbound["type"]="hysteria2"; outbound["password"]=Uri.UnescapeDataString(u.UserInfo);
                     break;
+                case "hysteria":
+                    outbound["type"]="hysteria";
+                    outbound["up_mbps"]=int.TryParse(q["upmbps"] ?? q["up"],out var up)?up:10;
+                    outbound["down_mbps"]=int.TryParse(q["downmbps"] ?? q["down"],out var down)?down:50;
+                    if (!string.IsNullOrWhiteSpace(q["auth"])) outbound["auth_str"]=q["auth"];
+                    break;
+                case "ss": case "shadowsocks":
+                    var user = Uri.UnescapeDataString(u.UserInfo);
+                    if (!user.Contains(':') && !string.IsNullOrWhiteSpace(user))
+                        user = Encoding.UTF8.GetString(Convert.FromBase64String(user));
+                    var split = user.IndexOf(':');
+                    if (split <= 0) return null;
+                    outbound["type"]="shadowsocks";
+                    outbound["method"]=user[..split];
+                    outbound["password"]=user[(split+1)..];
+                    break;
                 case "socks": case "socks5":
                     outbound["type"]="socks";
+                    if (!string.IsNullOrEmpty(u.UserInfo))
+                    {
+                        var auth=u.UserInfo.Split(':',2);
+                        if (auth.Length>0) outbound["username"]=Uri.UnescapeDataString(auth[0]);
+                        if (auth.Length>1) outbound["password"]=Uri.UnescapeDataString(auth[1]);
+                    }
                     break;
                 case "vmess":
                     var payload = Encoding.UTF8.GetString(Convert.FromBase64String(raw[(raw.IndexOf("://")+3)..].TrimEnd('/')));
@@ -151,7 +175,7 @@ public sealed class MainForm : Form
                     break;
                 default: return null;
             }
-            if (q["security"]=="tls" || q["tls"]=="1" || scheme is "trojan" or "hysteria2" or "hy2")
+            if (q["security"]=="tls" || q["tls"]=="1" || scheme is "trojan" or "hysteria2" or "hy2" or "hysteria")
                 outbound["tls"]=new JsonObject { ["enabled"]=true, ["server_name"]=q["sni"] ?? q["servername"] ?? host, ["insecure"]=q["allowInsecure"]=="1" };
             if (scheme=="vless" && !string.IsNullOrWhiteSpace(q["flow"])) outbound["flow"]=q["flow"];
             if (q["type"]=="ws")
