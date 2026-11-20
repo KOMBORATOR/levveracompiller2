@@ -49,7 +49,11 @@ object ProfileParser {
     fun parseSubscription(input: String, sourceUrl: String): List<Profile> {
         val original = input.trim()
         require(original.isNotEmpty()) { "Подписка пуста" }
-        var parsed = parse(original)
+        var parsed = if (original.startsWith("{") && sourceUrl != "local-import") {
+            parseSingBoxSubscription(original)
+        } else {
+            parse(original)
+        }
         if (parsed.isEmpty() && !original.startsWith("{")) {
             val decoded = runCatching {
                 String(Base64.decode(original.replace("\\s".toRegex(), ""), Base64.DEFAULT), Charsets.UTF_8)
@@ -58,6 +62,32 @@ object ProfileParser {
         }
         require(parsed.isNotEmpty()) { "Подписка не содержит поддерживаемых профилей" }
         return parsed.distinctBy { it.raw }.map { it.copy(id = (sourceUrl + it.raw).hashCode().toString(), subscriptionUrl = sourceUrl) }
+    }
+
+    private fun parseSingBoxSubscription(raw: String): List<Profile> {
+        val root = runCatching { JSONObject(raw) }.getOrNull() ?: return emptyList()
+        val outbounds = root.optJSONArray("outbounds") ?: return emptyList()
+        val supported = setOf("vless", "vmess", "trojan", "shadowsocks", "socks", "hysteria",
+            "hysteria2", "tuic", "anytls")
+        val profiles = mutableListOf<Profile>()
+        for (index in 0 until outbounds.length()) {
+            val outbound = outbounds.optJSONObject(index) ?: continue
+            val type = outbound.optString("type").lowercase()
+            if (type !in supported) continue
+            val tag = outbound.optString("tag").ifBlank { "$type-${index + 1}" }
+            val host = outbound.optString("server").ifBlank { "unknown" }
+            val port = outbound.optInt("server_port", 0)
+            val isolated = JSONObject(raw)
+            val isolatedOutbounds = JSONArray()
+                .put(JSONObject(outbound.toString()).put("tag", "proxy"))
+                .put(JSONObject().put("type", "direct").put("tag", "direct"))
+            isolated.put("outbounds", isolatedOutbounds)
+            isolated.put("route", JSONObject().put("final", "proxy").put("auto_detect_interface", true))
+            val config = isolated.toString()
+            profiles += Profile(config.hashCode().toString(), tag, type.uppercase(), config,
+                if (port in 1..65535) "$host:$port" else host)
+        }
+        return profiles
     }
 
     private fun parseOne(raw: String): Profile? {
