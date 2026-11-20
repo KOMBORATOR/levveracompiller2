@@ -24,6 +24,7 @@ object SingBoxConfigBuilder {
         val port = uri.port.takeIf { it in 1..65535 } ?: error("Некорректный порт сервера")
         val outbound = when (scheme) {
             "vless" -> vless(uri, query, host, port)
+            "hysteria" -> hysteria(uri, query, host, port)
             "hysteria2", "hy2" -> hysteria2(uri, query, host, port)
             "trojan" -> trojan(uri, query, host, port)
             "ss" -> shadowsocks(uri, host, port)
@@ -78,7 +79,17 @@ object SingBoxConfigBuilder {
 
         val route = config.optJSONObject("route") ?: JSONObject().also { config.put("route", it) }
         if (!route.has("auto_detect_interface")) route.put("auto_detect_interface", true)
-        if (route.optString("final").isBlank()) route.put("final", firstProxyTag)
+        val outboundTags = (0 until outbounds.length()).mapNotNull { outbounds.optJSONObject(it)?.optString("tag") }
+        if (route.optString("final").isBlank() || route.optString("final") !in outboundTags) {
+            route.put("final", firstProxyTag)
+        }
+        val tunInbound = (0 until inbounds.length()).mapNotNull { inbounds.optJSONObject(it) }
+            .firstOrNull { it.optString("type") == "tun" }
+        if (tunInbound != null) {
+            if (!tunInbound.has("address")) tunInbound.put("address", JSONArray().put("172.19.0.1/30").put("fdfe:dcba:9876::1/126"))
+            if (!tunInbound.has("mtu")) tunInbound.put("mtu", 1400)
+            if (!tunInbound.has("auto_route")) tunInbound.put("auto_route", true)
+        }
         if (!config.has("log")) config.put("log", JSONObject().put("level", "warn"))
         return config
     }
@@ -118,7 +129,7 @@ object SingBoxConfigBuilder {
     }
 
     private fun trojan(uri: URI, q: Map<String,String>, host: String, port: Int): JSONObject {
-        val pass=decode(uri.rawUserInfo.orEmpty()).substringBefore(':').takeIf { it.isNotBlank() } ?: error("Trojan: нет пароля")
+        val pass=decode(uri.rawUserInfo.orEmpty()).takeIf { it.isNotBlank() } ?: error("Trojan: нет пароля")
         val out=JSONObject().put("type","trojan").put("tag","proxy").put("server",host).put("server_port",port).put("password",pass)
         val tls=JSONObject().put("enabled",true)
         q["sni"]?.takeIf { it.isNotBlank() }?.let { tls.put("server_name",it) }
@@ -220,6 +231,28 @@ object SingBoxConfigBuilder {
             }
             else -> error("Транспорт VLESS '$network' пока не поддерживается")
         }
+        return out
+    }
+
+
+    private fun hysteria(uri: URI, q: Map<String,String>, host: String, port: Int): JSONObject {
+        val auth = q["auth_str"] ?: q["auth"] ?: decode(uri.rawUserInfo.orEmpty())
+        val up = q["upmbps"]?.toIntOrNull() ?: q["up"]?.toIntOrNull()
+            ?: error("Hysteria 1: в ссылке не указана скорость upmbps")
+        val down = q["downmbps"]?.toIntOrNull() ?: q["down"]?.toIntOrNull()
+            ?: error("Hysteria 1: в ссылке не указана скорость downmbps")
+        require(up > 0 && down > 0) { "Hysteria 1: скорости должны быть больше нуля" }
+        val out = JSONObject().put("type","hysteria").put("tag","proxy")
+            .put("server",host).put("server_port",port).put("up_mbps",up).put("down_mbps",down)
+        if (auth.isNotBlank()) out.put("auth_str",auth)
+        q["obfs"]?.takeIf { it.isNotBlank() }?.let { out.put("obfs",it) }
+        val tls = JSONObject().put("enabled",true)
+        (q["peer"] ?: q["sni"])?.takeIf { it.isNotBlank() }?.let { tls.put("server_name",it) }
+        if (q["insecure"] == "1") tls.put("insecure",true)
+        q["alpn"]?.takeIf { it.isNotBlank() }?.let {
+            tls.put("alpn",JSONArray(it.split(',').map(String::trim).filter(String::isNotEmpty)))
+        }
+        out.put("tls",tls)
         return out
     }
 
