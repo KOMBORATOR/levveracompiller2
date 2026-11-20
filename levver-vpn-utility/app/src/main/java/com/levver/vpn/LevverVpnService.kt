@@ -21,8 +21,8 @@ import kotlinx.coroutines.*
 
 /**
  * LEVVER's Android VPN host for the official sing-box libbox engine.
- * Only user-supplied sing-box JSON configurations are accepted in this first
- * tunnel milestone. Share-link conversion is deliberately handled separately.
+ * Accepts normalized sing-box JSON generated from supported share links or imported
+ * user configurations. All remote servers must be supplied by the user and authorized.
  */
 class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     companion object {
@@ -37,6 +37,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private var tunFd: ParcelFileDescriptor? = null
     private var commandServer: CommandServer? = null
     private var currentConfig: String? = null
+    @Volatile private var engineInitialized = false
 
     override fun onCreate() {
         super.onCreate()
@@ -57,6 +58,11 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         startForeground(NOTIFICATION_ID, notification("Подключаемся…"))
         scope.launch {
             try {
+                if (commandServer != null) {
+                    runCatching { commandServer?.closeService() }
+                    runCatching { commandServer?.close() }
+                    commandServer = null
+                }
                 setupEngine()
                 val server = CommandServer(this@LevverVpnService, this@LevverVpnService)
                 server.start()
@@ -69,11 +75,19 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 }
             } catch (e: Exception) {
                 Log.e("LEVVER", "VPN start failed", e)
+                setVpnActive(false)
+                runCatching { commandServer?.closeService() }
+                runCatching { commandServer?.close() }
+                commandServer = null
+                runCatching { tunFd?.close() }
+                tunFd = null
                 withContext(Dispatchers.Main) {
-                    setVpnActive(false)
-                    getSystemService(NotificationManager::class.java)
-                        .notify(NOTIFICATION_ID, notification("Ошибка: ${e.message ?: "не удалось подключиться"}"))
-                    stopTunnel()
+                    getSystemService(NotificationManager::class.java).notify(
+                        NOTIFICATION_ID + 1,
+                        notification("Ошибка подключения: ${e.message ?: "проверь конфигурацию"}")
+                    )
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
                 }
             }
         }
@@ -92,7 +106,10 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             logMaxLines = 1000
             debug = false
         }
-        Libbox.setup(options)
+        if (!engineInitialized) {
+            Libbox.setup(options)
+            engineInitialized = true
+        }
     }
 
     private fun createChannel() {
