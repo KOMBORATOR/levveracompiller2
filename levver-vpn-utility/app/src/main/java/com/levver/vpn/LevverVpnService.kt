@@ -129,7 +129,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             .setSmallIcon(R.drawable.ic_levver_mark)
             .setContentTitle("LEVVER Utility")
             .setContentText(message)
-            .setOngoing(message != "VPN отключён")
+            .setOngoing(message != "VPN отключён" && !message.startsWith("Ошибка"))
             .addAction(0, "Отключить", stopIntent)
             .build()
     }
