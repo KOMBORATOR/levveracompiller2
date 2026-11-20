@@ -142,9 +142,9 @@ class MainActivity:ComponentActivity(){
        .onFailure { e -> notice=e.message ?: "Не удалось загрузить подписку." }
      }
     } else {
-     val parsed=ProfileParser.parseSubscription(value, "local-import")
-     if(parsed.isEmpty()) notice="Не удалось распознать ссылку или конфигурацию."
-     else mergeProfiles(parsed.map { it.copy(subscriptionUrl = null) })
+     val parsed=runCatching { ProfileParser.parseSubscription(value, "local-import") }
+      .getOrElse { e -> notice=e.message ?: "Не удалось распознать ссылку или конфигурацию."; return }
+     mergeProfiles(parsed.map { it.copy(subscriptionUrl = null) })
     }
    }
    fun refreshSubscriptions(){
