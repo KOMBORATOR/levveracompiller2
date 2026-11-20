@@ -247,11 +247,11 @@ class MainActivity:ComponentActivity(){
    Box(Modifier.size(126.dp),contentAlignment=Alignment.Center){Image(painterResource(R.drawable.ic_levver_mark),contentDescription="Логотип LEVVER",modifier=Modifier.size(100.dp))}
   }
   Spacer(Modifier.height(22.dp)); Text("LEVVER UTILITY",color=Color.White,fontWeight=FontWeight.Bold,fontSize=21.sp)
-  Text("VPN-клиент • ссылки и sing-box JSON",color=Pale,fontSize=12.sp)
+  Text("VPN-клиент • серверы и подписки",color=Pale,fontSize=12.sp)
   Spacer(Modifier.height(18.dp))
   Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF3A2B18)),shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()){
    Column(Modifier.padding(14.dp)){
-    Text(if (connected) "VPN • ЗАПУСК ЗАПРОШЕН" else "VPN • ГОТОВ К ПОДКЛЮЧЕНИЮ",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
+    Text(if (connected) "VPN • ЗАПУСК ЗАПРОШЕН" else "VPN • ГОТОВ К ПОДКЛЮЧЕНИЮ",color=Color(0xFFBBD3FF),fontWeight=FontWeight.Bold,fontSize=11.sp)
     Spacer(Modifier.height(5.dp))
     Text("Движок sing-box подключён. Для текущего теста нужен sing-box JSON с TUN inbound. Проверь статус в системном уведомлении.",color=Color.White,fontSize=12.sp)
    }
