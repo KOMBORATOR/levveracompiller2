@@ -34,10 +34,18 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val engineMutex = kotlinx.coroutines.sync.Mutex()
     private var tunFd: ParcelFileDescriptor? = null
     private var commandServer: CommandServer? = null
     private var currentConfig: String? = null
     @Volatile private var engineInitialized = false
+    @Volatile private var startGeneration = 0L
+
+    @Synchronized
+    private fun nextGeneration(): Long {
+        startGeneration += 1
+        return startGeneration
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -54,44 +62,67 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             stopSelf()
             return START_NOT_STICKY
         }
+
+        val generation = nextGeneration()
         currentConfig = config
         startForeground(NOTIFICATION_ID, notification("Подключаемся…"))
         scope.launch {
-            try {
-                if (commandServer != null) {
-                    runCatching { commandServer?.closeService() }
-                    runCatching { commandServer?.close() }
-                    commandServer = null
-                }
-                setupEngine()
-                val server = CommandServer(this@LevverVpnService, this@LevverVpnService)
-                server.start()
-                commandServer = server
-                server.startOrReloadService(config, OverrideOptions())
-                setVpnActive(true)
-                withContext(Dispatchers.Main) {
-                    getSystemService(NotificationManager::class.java)
-                        .notify(NOTIFICATION_ID, notification("VPN подключён"))
-                }
-            } catch (e: Exception) {
-                Log.e("LEVVER", "VPN start failed", e)
-                setVpnActive(false)
-                runCatching { commandServer?.closeService() }
-                runCatching { commandServer?.close() }
-                commandServer = null
-                runCatching { tunFd?.close() }
-                tunFd = null
-                withContext(Dispatchers.Main) {
-                    getSystemService(NotificationManager::class.java).notify(
-                        NOTIFICATION_ID + 1,
-                        notification("Ошибка подключения: ${e.message ?: "проверь конфигурацию"}")
-                    )
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
+            engineMutex.withLock {
+                if (generation != startGeneration) return@withLock
+                try {
+                    closeEngineLocked()
+                    setupEngine()
+                    if (generation != startGeneration) return@withLock
+
+                    val server = CommandServer(this@LevverVpnService, this@LevverVpnService)
+                    commandServer = server
+                    server.start()
+                    if (generation != startGeneration) {
+                        closeEngineLocked()
+                        return@withLock
+                    }
+                    server.startOrReloadService(config, OverrideOptions())
+                    if (generation != startGeneration) {
+                        closeEngineLocked()
+                        return@withLock
+                    }
+                    setVpnActive(true)
+                    withContext(Dispatchers.Main) {
+                        if (generation == startGeneration) {
+                            getSystemService(NotificationManager::class.java)
+                                .notify(NOTIFICATION_ID, notification("VPN запущен"))
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("LEVVER", "VPN start failed", e)
+                    if (generation == startGeneration) {
+                        setVpnActive(false)
+                        closeEngineLocked()
+                        withContext(Dispatchers.Main) {
+                            if (generation == startGeneration) {
+                                getSystemService(NotificationManager::class.java).notify(
+                                    NOTIFICATION_ID + 1,
+                                    notification("Ошибка подключения: ${e.message ?: "проверь конфигурацию"}")
+                                )
+                                stopForeground(STOP_FOREGROUND_REMOVE)
+                                stopSelf()
+                            }
+                        }
+                    } else {
+                        closeEngineLocked()
+                    }
                 }
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun closeEngineLocked() {
+        runCatching { commandServer?.closeService() }
+        runCatching { commandServer?.close() }
+        commandServer = null
+        runCatching { tunFd?.close() }
+        tunFd = null
     }
 
     private fun setupEngine() {
@@ -140,19 +171,18 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
 
     private fun stopTunnel() {
+        val generation = nextGeneration()
         setVpnActive(false)
         scope.launch {
-            runCatching { commandServer?.closeService() }
-            runCatching { commandServer?.close() }
-            commandServer = null
-            runCatching { tunFd?.close() }
-            tunFd = null
+            engineMutex.withLock { closeEngineLocked() }
             withContext(Dispatchers.Main) {
-                getSystemService(NotificationManager::class.java).notify(
-                    NOTIFICATION_ID, notification("VPN отключён")
-                )
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                if (generation == startGeneration) {
+                    getSystemService(NotificationManager::class.java).notify(
+                        NOTIFICATION_ID, notification("VPN отключён")
+                    )
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
             }
         }
     }
@@ -163,9 +193,13 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
 
     override fun onDestroy() {
+        nextGeneration()
         scope.cancel()
-        runCatching { tunFd?.close() }
+        runCatching { commandServer?.closeService() }
         runCatching { commandServer?.close() }
+        runCatching { tunFd?.close() }
+        commandServer = null
+        tunFd = null
         super.onDestroy()
     }
 
@@ -173,7 +207,15 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     override fun serviceStop() { stopTunnel() }
     override fun serviceReload() {
         val config = currentConfig ?: return
-        scope.launch { runCatching { commandServer?.startOrReloadService(config, OverrideOptions()) } }
+        val generation = startGeneration
+        scope.launch {
+            engineMutex.withLock {
+                if (generation == startGeneration) {
+                    runCatching { commandServer?.startOrReloadService(config, OverrideOptions()) }
+                        .onFailure { Log.e("LEVVER", "VPN reload failed", it) }
+                }
+            }
+        }
     }
     override fun getSystemProxyStatus(): SystemProxyStatus = SystemProxyStatus().apply {
         available = false
