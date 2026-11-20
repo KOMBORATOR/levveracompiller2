@@ -13,7 +13,7 @@ object ProfileParser {
         "ss" to "Shadowsocks", "socks" to "SOCKS", "socks5" to "SOCKS5",
         "socks5h" to "SOCKS5", "hysteria" to "Hysteria", "hysteria2" to "Hysteria2",
         "hy2" to "Hysteria2", "tuic" to "TUIC", "anytls" to "AnyTLS",
-        "wireguard" to "WireGuard", "wg" to "WireGuard"
+        // WireGuard legacy outbound was removed by sing-box before the bundled 1.14.x engine.
     )
 
     fun parse(input: String): List<Profile> {
