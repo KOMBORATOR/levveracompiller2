@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.ComponentName
+import android.service.quicksettings.TileService
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -60,6 +62,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 server.start()
                 commandServer = server
                 server.startOrReloadService(config, OverrideOptions())
+                setVpnActive(true)
                 withContext(Dispatchers.Main) {
                     getSystemService(NotificationManager::class.java)
                         .notify(NOTIFICATION_ID, notification("VPN подключён"))
@@ -67,6 +70,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             } catch (e: Exception) {
                 Log.e("LEVVER", "VPN start failed", e)
                 withContext(Dispatchers.Main) {
+                    setVpnActive(false)
                     getSystemService(NotificationManager::class.java)
                         .notify(NOTIFICATION_ID, notification("Ошибка: ${e.message ?: "не удалось подключиться"}"))
                     stopTunnel()
@@ -113,7 +117,13 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             .build()
     }
 
+    private fun setVpnActive(active: Boolean) {
+        getSharedPreferences("levver_runtime", MODE_PRIVATE).edit().putBoolean("vpn_active", active).apply()
+        runCatching { TileService.requestListeningState(this, ComponentName(this, QuickSettingsTileService::class.java)) }
+    }
+
     private fun stopTunnel() {
+        setVpnActive(false)
         scope.launch {
             runCatching { commandServer?.closeService() }
             runCatching { commandServer?.close() }
