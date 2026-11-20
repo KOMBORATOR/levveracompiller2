@@ -213,10 +213,11 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         destinationAddress: String, destinationPort: Int): ConnectionOwner {
         val owner = ConnectionOwner()
         if (Build.VERSION.SDK_INT >= 29) {
-            val uid = getSystemService(android.net.ConnectivityManager::class.java)
-                .getConnectionOwnerUid(ipProtocol, java.net.InetSocketAddress(sourceAddress, sourcePort),
-                    java.net.InetSocketAddress(destinationAddress, destinationPort))
-            owner.userId = uid
+            owner.userId = runCatching {
+                getSystemService(android.net.ConnectivityManager::class.java)
+                    .getConnectionOwnerUid(ipProtocol, java.net.InetSocketAddress(sourceAddress, sourcePort),
+                        java.net.InetSocketAddress(destinationAddress, destinationPort))
+            }.getOrDefault(-1)
         }
         return owner
     }
@@ -234,10 +235,10 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 item.mtu = ni.mtu
                 item.addresses = StringArray(ni.interfaceAddresses.map {
                     "${it.address.hostAddress.substringBefore('%')}/${it.networkPrefixLength}"
-                }.iterator())
+                })
                 item.flags = 1
                 item.type = Libbox.InterfaceTypeOther
-                item.dnsServer = StringArray(emptyList<String>().iterator())
+                item.dnsServer = StringArray(emptyList())
                 item.gateway = StringArray(emptyList<String>().iterator())
                 items.add(item)
             }
@@ -269,9 +270,10 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     override fun usePlatformBridge() = false
     override fun createBridge(options: BridgeOptions?): BridgeSession { error("Platform bridge is not supported") }
 
-    private class StringArray(private val iterator: Iterator<String>) : StringIterator {
-        override fun len(): Int = 0
-        override fun hasNext() = iterator.hasNext()
-        override fun next() = iterator.next()
+    private class StringArray(private val values: List<String>) : StringIterator {
+        private var index = 0
+        override fun len(): Int = values.size
+        override fun hasNext(): Boolean = index < values.size
+        override fun next(): String = values[index++]
     }
 }
