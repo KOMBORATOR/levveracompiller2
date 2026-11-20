@@ -124,15 +124,48 @@ class MainActivity:ComponentActivity(){
     vpnRunning = false
     notice = "Запрошено отключение VPN."
    }
+   fun mergeProfiles(parsed: List<Profile>) {
+    val added=parsed.filter { p->profiles.none{it.raw==p.raw && it.subscriptionUrl==p.subscriptionUrl} }
+    profiles=profiles+added
+    store.save(profiles)
+    selected=added.firstOrNull()?.id?:parsed.firstOrNull()?.id?:selected
+    notice="Добавлено серверов: ${added.size}"
+    input=""
+   }
    fun importProfileText(raw:String){
-    val parsed=ProfileParser.parse(raw)
-    if(parsed.isEmpty()) notice="Не удалось распознать ссылку. Проверь формат."
-    else {
-     val added=parsed.filter { p->profiles.none{it.raw==p.raw} }
-     profiles=profiles+added; store.save(profiles)
-     selected=added.firstOrNull()?.id?:parsed.first().id
-     notice="Импортировано профилей: ${added.size}"
-     input=""
+    val value=raw.trim()
+    if(value.startsWith("https://",true) || value.startsWith("http://",true)){
+     notice="Загружаем список серверов…"
+     uiScope.launch {
+      runCatching { withContext(Dispatchers.IO) { SubscriptionImporter.fetch(value) } }
+       .onSuccess { mergeProfiles(it); notice="Подписка добавлена: ${it.size} серверов" }
+       .onFailure { e -> notice=e.message ?: "Не удалось загрузить подписку." }
+     }
+    } else {
+     val parsed=ProfileParser.parseSubscription(value, "local-import")
+     if(parsed.isEmpty()) notice="Не удалось распознать ссылку или конфигурацию."
+     else mergeProfiles(parsed.map { it.copy(subscriptionUrl = null) })
+    }
+   }
+   fun refreshSubscriptions(){
+    val urls=profiles.mapNotNull { it.subscriptionUrl }.distinct()
+    if(urls.isEmpty()){ notice="Сначала добавь URL подписки."; return }
+    notice="Обновляем подписки…"
+    uiScope.launch {
+     var current=profiles
+     var refreshed=0
+     val errors=mutableListOf<String>()
+     for(url in urls){
+      try {
+       val latest=withContext(Dispatchers.IO){SubscriptionImporter.fetch(url)}
+       current=current.filterNot { it.subscriptionUrl==url } + latest
+       refreshed += latest.size
+      } catch(e:Exception){ errors += (e.message ?: "ошибка обновления") }
+     }
+     profiles=current.distinctBy { it.raw to it.subscriptionUrl }
+     store.save(profiles)
+     if(selected !in profiles.map { it.id }) selected=profiles.firstOrNull()?.id
+     notice=if(errors.isEmpty()) "Подписки обновлены: $refreshed серверов." else "Обновлено: $refreshed. Ошибок: ${errors.size}."
     }
    }
    val qr=rememberLauncherForActivityResult(ScanContract()){ result->result.contents?.let{importProfileText(it)} }
@@ -165,7 +198,7 @@ class MainActivity:ComponentActivity(){
     }){ pad->
      when(tab){
       0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,vpnRunning,{connectSelected()},{disconnectVpn()},Modifier.padding(pad))
-      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad),probeResults,{checkAllServers()},{jsonPicker.launch(arrayOf("application/json","text/*","application/octet-stream"))})
+      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad),probeResults,{checkAllServers()},{jsonPicker.launch(arrayOf("application/json","text/*","application/octet-stream"))},{refreshSubscriptions()})
       else->SettingsScreen(profiles.size,Modifier.padding(pad),{ requestQuickSettingsTile() })
      }
     }
@@ -218,7 +251,7 @@ class MainActivity:ComponentActivity(){
   Spacer(Modifier.height(18.dp))
   Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF3A2B18)),shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()){
    Column(Modifier.padding(14.dp)){
-    Text(if (connected) "VPN • START REQUESTED" else "VPN • READY FOR CONFIG",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
+    Text(if (connected) "VPN • ЗАПУСК ЗАПРОШЕН" else "VPN • ГОТОВ К ПОДКЛЮЧЕНИЮ",color=Color(0xFFFFD18A),fontWeight=FontWeight.Bold,fontSize=11.sp)
     Spacer(Modifier.height(5.dp))
     Text("Движок sing-box подключён. Для текущего теста нужен sing-box JSON с TUN inbound. Проверь статус в системном уведомлении.",color=Color.White,fontSize=12.sp)
    }
@@ -232,19 +265,19 @@ class MainActivity:ComponentActivity(){
   Text("LEVVER • BUILD 0.9.0 BETA PRE-RELEASE",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
-@Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {},onPickJson:()->Unit = {}){
+@Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {},onPickJson:()->Unit = {},onRefreshSubscriptions:()->Unit = {}){
  Column(modifier.fillMaxSize().padding(18.dp)){
-  Header(); Spacer(Modifier.height(20.dp)); Text("Мои серверы",color=Color.White,fontSize=25.sp,fontWeight=FontWeight.Bold)
+  Header(); Spacer(Modifier.height(20.dp)); Text("Серверы и подписки",color=Color.White,fontSize=25.sp,fontWeight=FontWeight.Bold)
   Text("Добавляй конфигурации, которыми имеешь право пользоваться.",color=Pale,fontSize=11.sp)
   Spacer(Modifier.height(14.dp))
-  OutlinedTextField(value=input,onValueChange=onInput,modifier=Modifier.fillMaxWidth(),label={Text("Ссылка, JSON или несколько ссылок")},minLines=2,maxLines=5,colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Sky,focusedLabelColor=Sky))
+  OutlinedTextField(value=input,onValueChange=onInput,modifier=Modifier.fillMaxWidth(),label={Text("Ссылка, JSON, список или URL подписки")},minLines=2,maxLines=5,colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Sky,focusedLabelColor=Sky))
   Spacer(Modifier.height(8.dp)); Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
    Button(onClick=onImport,modifier=Modifier.weight(1f)){Icon(Icons.Default.Add,null);Text("Импорт")}
    OutlinedButton(onClick=onPaste){Icon(Icons.Default.ContentPaste,null);Text("Вставить")}
    OutlinedButton(onClick=onScan){Icon(Icons.Default.QrCodeScanner,null)}
   }
-  OutlinedButton(onClick=onPickJson,modifier=Modifier.fillMaxWidth()){Text("Выбрать JSON-файл")}
-  Text("Можно импортировать полную конфигурацию или JSON только с outbounds — TUN добавится автоматически.",color=Color(0xFF8EADD8),fontSize=10.sp)
+  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){ OutlinedButton(onClick=onPickJson,modifier=Modifier.weight(1f)){Text("Импорт JSON")} ; OutlinedButton(onClick=onRefreshSubscriptions,modifier=Modifier.weight(1f)){Text("Обновить подписки")} }
+  Text("Подписка загружает сразу несколько серверов. Обновление заменяет старый список актуальным.",color=Color(0xFF8EADD8),fontSize=10.sp)
   Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){ Text(notice,color=Pale,fontSize=11.sp,modifier=Modifier.weight(1f)); OutlinedButton(onClick=onProbeAll){Text("Пинг / рейтинг")} }
   Text("TCP-задержка — ориентир доступности. UDP-серверы (например, Hysteria2) этим тестом честно не сравнить.",color=Color(0xFF8EADD8),fontSize=10.sp)
   Spacer(Modifier.height(10.dp))
@@ -252,7 +285,7 @@ class MainActivity:ComponentActivity(){
    items(profiles,key={it.id}){p->
     Card(onClick={onSelect(p.id)},colors=CardDefaults.cardColors(containerColor=if(p.id==selected)Color(0xFF164B70) else Panel),shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){
      Row(Modifier.padding(13.dp),verticalAlignment=Alignment.CenterVertically){
-      Column(Modifier.weight(1f)){Text(p.name,color=Color.White,fontWeight=FontWeight.SemiBold);Text("${p.protocol} • ${p.server}",color=Pale,fontSize=11.sp); diagnostics[p.id]?.let { result -> Text(result.latencyMs?.let { "TCP: $it мс • ${result.detail}" } ?: result.detail,color=if(result.latencyMs==null) Color(0xFFFFC078) else Color(0xFF8DE0B0),fontSize=10.sp) }}
+      Column(Modifier.weight(1f)){Text(p.name,color=Color.White,fontWeight=FontWeight.SemiBold);Text("${p.protocol} • ${p.server}",color=Pale,fontSize=11.sp); p.subscriptionUrl?.let { Text("Подписка • ${it.substringAfter("://").substringBefore('/')}",color=Color(0xFF8EADD8),fontSize=10.sp) }; diagnostics[p.id]?.let { result -> Text(result.latencyMs?.let { "TCP: $it мс • ${result.detail}" } ?: result.detail,color=if(result.latencyMs==null) Color(0xFFFFC078) else Color(0xFF8DE0B0),fontSize=10.sp) }}
       IconButton(onClick={onDelete(p)}){Icon(Icons.Default.Delete,null,tint=Color(0xFFFF8D8D))}
      }
     }
@@ -272,7 +305,7 @@ class MainActivity:ComponentActivity(){
 }
 @Composable private fun SettingsScreen(count:Int,modifier:Modifier=Modifier,onAddTile:()->Unit){
  Column(modifier.fillMaxSize().padding(22.dp)){Header();Spacer(Modifier.height(24.dp));Text("Настройки",color=Color.White,fontSize=26.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(16.dp))
-  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.9.0 Beta Pre-release • sing-box");Spacer(Modifier.height(12.dp))
+  InfoCard("О ПРИЛОЖЕНИИ","LEVVER VPN UTILITY\nВерсия 1.0.0 • sing-box");Spacer(Modifier.height(12.dp))
   Button(onClick=onAddTile,modifier=Modifier.fillMaxWidth()){Text("Добавить плитку LEVVER VPN в шторку Android")}
   Spacer(Modifier.height(12.dp))
   InfoCard("ЛОКАЛЬНЫЕ ДАННЫЕ","Сохранено профилей: $count");Spacer(Modifier.height(12.dp))
