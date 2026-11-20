@@ -57,7 +57,7 @@ object ProfileParser {
             if (!decoded.isNullOrBlank()) parsed = parse(decoded)
         }
         require(parsed.isNotEmpty()) { "Подписка не содержит поддерживаемых профилей" }
-        return parsed.distinctBy { it.raw }.map { it.copy(subscriptionUrl = sourceUrl) }
+        return parsed.distinctBy { it.raw }.map { it.copy(id = (sourceUrl + it.raw).hashCode().toString(), subscriptionUrl = sourceUrl) }
     }
 
     private fun parseOne(raw: String): Profile? {
