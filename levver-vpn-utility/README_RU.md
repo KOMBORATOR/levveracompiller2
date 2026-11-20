@@ -1,64 +1,36 @@
-# LEVVER Utility — Android
+# LEVVER VPN UTILITY 1.0.0
 
-Версия 0.7.0 Alpha • Kotlin • Jetpack Compose • sing-box libbox 1.14.4
+LEVVER VPN UTILITY — Android-клиент для подключения к VPN-серверам, которые пользователь добавил самостоятельно и имеет право использовать.
 
-## Реализовано в текущей Alpha
-- Главный экран, список профилей и настройки.
-- Импорт профилей из буфера обмена, QR-кода, Android Share и deep links.
-- Локальное хранение профилей с AES-GCM; ключ AES хранится в Android Keystore.
-- Android VpnService и интеграция с libbox CommandServer.
-- Преобразование ссылок VLESS (TLS/Reality, TCP/WS/gRPC/HTTPUpgrade) и Hysteria2 (включая salamander obfs) в sing-box конфигурацию.
-- Импорт пользовательского sing-box JSON с TUN inbound.
-- GitHub Actions unit-test и debug APK workflow.
+## Возможности
 
-## Ограничения текущей Alpha
-- Автоматическая конвертация реализована пока только для VLESS и Hysteria2. Остальные схемы распознаются парсером и сохраняются, но конвертер для них ещё не готов.
-- Поддержка отдельных параметров и вариантов URI ограничена; неподдерживаемый транспорт или параметр должен приводить к понятной ошибке, а не к ложному статусу подключения.
-- Успешная компиляция не подтверждает реальное подключение. Для проверки туннеля требуется тест на Android-устройстве с тестовой конфигурацией сервера, которым пользователь владеет или имеет разрешение пользоваться.
-- Перед выпуском нужно проверить сетевые маршруты, DNS, остановку/перезапуск сервиса, отзыв VPN-разрешения, переходы между Wi-Fi и мобильной сетью, а также обработку ошибок.
+- Импорт отдельных серверов и списков серверов.
+- Подписки по HTTP/HTTPS: загрузка нескольких профилей из одной ссылки и ручное обновление списка.
+- Поддерживаемые URI-схемы: VLESS, VMess, Trojan, Shadowsocks, SOCKS5, Hysteria v1, Hysteria2, TUIC и AnyTLS.
+- Импорт sing-box JSON, включая конфигурации только с `outbounds`; Android TUN и маршрут добавляются при необходимости.
+- Подписки в формате обычного списка URI и Base64-кодированного списка URI.
+- Импорт JSON из файла, буфера обмена, QR-кода и Android Share.
+- Локальное шифрование профилей AES-GCM с ключом Android Keystore.
+- Подключение через Android VPN Service и sing-box libbox.
+- Системное уведомление с управлением подключением и плитка Quick Settings.
+
+## Подписки
+
+Вставьте HTTP/HTTPS URL подписки в поле импорта. Приложение загрузит список и добавит распознанные серверы в отдельную группу подписки. Кнопка «Обновить подписки» повторно загружает источники и заменяет устаревшие профили актуальными.
+
+Подписка должна возвращать обычный список поддерживаемых URI, Base64-кодированный список URI или sing-box JSON с массивом `outbounds`. Для безопасности загрузка ограничена 5 МБ; используются тайм-ауты соединения и чтения.
+
+## Важно о совместимости
+
+Поддержка URI зависит от используемых параметров транспорта и схемы sing-box 1.14.4. Успешный импорт не гарантирует, что конкретный сервер доступен или что каждый его параметр совместим. Legacy WireGuard outbound не заявляется как поддерживаемый в этой версии движка. Clash YAML и произвольные V2Ray JSON-конфигурации не конвертируются автоматически в этой версии.
+
+## Безопасность и конфиденциальность
+
+- Используйте только серверы, которыми владеете или на использование которых у вас есть разрешение.
+- Ссылки подписок и конфигурации могут содержать секреты доступа. Не публикуйте их и не отправляйте в открытые Issue.
+- Содержимое подписки загружается непосредственно на устройство; приложение не предоставляет собственные VPN-серверы.
+- Профили хранятся локально в зашифрованном виде. Сброс Android Keystore может сделать сохранённые данные недоступными.
 
 ## Лицензии
-libbox распространяется по GPL-3.0-or-later. До публикации необходимо включить соответствующие уведомления и выполнить требования GPL, включая предоставление соответствующего исходного кода производной сборки.
 
-## Конфиденциальность
-- Не публикуй ссылки, UUID, пароли и конфигурации в Issues или публичных логах.
-- Профили шифруются на устройстве через Android Keystore.
-- Потеря ключа Android Keystore может сделать сохранённые профили нечитаемыми.
-
-
-## 0.8.0 Alpha — диагностика и Quick Settings
-- Добавлен TCP connect latency probe для профилей с доменом/IP и TCP-портом.
-- Кнопка «Пинг / рейтинг» сравнивает TCP-доступность профилей и показывает самый быстрый ответивший endpoint.
-- Важно: это не ICMP ping и не тест скорости/качества VPN-туннеля. UDP-протоколы (включая Hysteria2) нельзя честно ранжировать этим TCP-тестом; для них требуется протокольная проверка/handshake через движок.
-- Добавлена плитка LEVVER VPN в Android Quick Settings. После первого предоставления системного VPN-разрешения плитка может запускать сохранённую последнюю конфигурацию или отключать активный VPN.
-- Сервис синхронизирует состояние плитки и поддерживает постоянное системное уведомление во время работы VPN.
-- Уведомления Android 13+ могут требовать отдельного разрешения POST_NOTIFICATIONS; пользователь может отключить их в настройках Android.
-
-## Известные ограничения
-- TCP latency — только предварительная оценка доступности порта; лучший результат не гарантирует лучшую пропускную способность, стабильность или географически лучший сервер.
-- Для честного сравнения Hysteria2/UDP и проверки VPN end-to-end нужно добавить тест через sing-box URLTest или отдельную диагностическую операцию движка.
-
-
-## 0.8.1 Beta Pre-release
-- Android 13+: added a system prompt to add the LEVVER VPN Quick Settings tile from Settings.
-- Fixed libbox StringIterator length reporting and guarded connection-owner lookup.
-- Added share-link conversion for VMess, Trojan, Shadowsocks (modern URI form), SOCKS5, TUIC and AnyTLS alongside VLESS and Hysteria2.
-- Import recognition does not guarantee successful connection; server-specific transport options still need validation on a real device.
-- CI success confirms compilation/tests only. Real tunnel operation and tile appearance must be checked on Android hardware.
-
-
-## 0.9.0 Beta Pre-release
-- Accepts sing-box JSON exports with `outbounds` even when they do not include an Android TUN inbound.
-- Adds a TUN inbound, direct outbound and default route when missing; existing full configs are preserved and normalized.
-- Adds Android document-picker import for `.json` files (3 MB import limit).
-- Share links continue to be converted into sing-box JSON before the engine starts.
-- Engine setup is performed once per service instance; previous command-server instances are closed before reconnect.
-- Connection errors remain visible as a separate notification instead of being immediately replaced by a disconnect message.
-- Supported links remain subject to engine schema compatibility and real-device testing. No server credentials are included in the app.
-
-
-### Форматы и импорт в 0.9.0
-- Ссылки: VLESS, VMess, Trojan, Shadowsocks, SOCKS5, Hysteria v1 (если в ссылке указаны up/down Mbps), Hysteria2, TUIC и AnyTLS.
-- JSON: импорт вставкой текста или выбором файла `.json`. При наличии массива `outbounds` LEVVER автоматически добавляет Android TUN inbound и маршрут, если их нет.
-- WireGuard legacy outbound не заявляется как поддерживаемый: он удалён из новых версий sing-box; готовые конфигурации, использующие поддерживаемый endpoint, можно импортировать как sing-box JSON.
-- Ссылки автоматически преобразуются в JSON для движка. Сам факт импорта не является подтверждением успешного подключения.
+Приложение использует sing-box libbox 1.14.4, распространяемый по GPL-3.0-or-later. При распространении сборки необходимо предоставить соответствующие лицензионные уведомления и исходный код, требуемый GPL.
