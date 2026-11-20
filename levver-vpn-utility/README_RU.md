@@ -55,3 +55,10 @@ libbox распространяется по GPL-3.0-or-later. До публик
 - Engine setup is performed once per service instance; previous command-server instances are closed before reconnect.
 - Connection errors remain visible as a separate notification instead of being immediately replaced by a disconnect message.
 - Supported links remain subject to engine schema compatibility and real-device testing. No server credentials are included in the app.
+
+
+### Форматы и импорт в 0.9.0
+- Ссылки: VLESS, VMess, Trojan, Shadowsocks, SOCKS5, Hysteria v1 (если в ссылке указаны up/down Mbps), Hysteria2, TUIC и AnyTLS.
+- JSON: импорт вставкой текста или выбором файла `.json`. При наличии массива `outbounds` LEVVER автоматически добавляет Android TUN inbound и маршрут, если их нет.
+- WireGuard legacy outbound не заявляется как поддерживаемый: он удалён из новых версий sing-box; готовые конфигурации, использующие поддерживаемый endpoint, можно импортировать как sing-box JSON.
+- Ссылки автоматически преобразуются в JSON для движка. Сам факт импорта не является подтверждением успешного подключения.
