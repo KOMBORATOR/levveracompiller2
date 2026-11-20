@@ -55,10 +55,19 @@ object ProfileParser {
             else -> parse(original)
         }
         if (parsed.isEmpty() && !original.startsWith("{")) {
+            val compact = original.replace("\\s".toRegex(), "")
             val decoded = runCatching {
-                String(Base64.decode(original.replace("\\s".toRegex(), ""), Base64.DEFAULT), Charsets.UTF_8)
+                String(Base64.decode(compact, Base64.DEFAULT), Charsets.UTF_8)
+            }.recoverCatching {
+                String(Base64.decode(compact, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
             }.getOrNull()
-            if (!decoded.isNullOrBlank()) parsed = parse(decoded)
+            if (!decoded.isNullOrBlank()) {
+                parsed = when {
+                    decoded.contains("proxies:") -> ClashYamlParser.parse(decoded)
+                    decoded.startsWith("{") && sourceUrl != "local-import" -> parseSingBoxSubscription(decoded)
+                    else -> parse(decoded)
+                }
+            }
         }
         require(parsed.isNotEmpty()) { "Подписка не содержит поддерживаемых профилей" }
         return parsed.distinctBy { it.raw }.map { it.copy(id = (sourceUrl + it.raw).hashCode().toString(), subscriptionUrl = sourceUrl) }
