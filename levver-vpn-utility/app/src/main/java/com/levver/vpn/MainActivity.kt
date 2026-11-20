@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.content.ComponentName
+import android.app.StatusBarManager
 import android.graphics.drawable.Icon
 import android.service.quicksettings.TileService
 import android.os.Bundle
@@ -165,12 +166,18 @@ class MainActivity:ComponentActivity(){
    android.widget.Toast.makeText(this, "Открой шторку Android → Изменить → добавь LEVVER VPN вручную.", android.widget.Toast.LENGTH_LONG).show()
    return
   }
-  TileService.requestAddTileService(this, ComponentName(this, QuickSettingsTileService::class.java),
-   "LEVVER VPN", Icon.createWithResource(this, R.drawable.ic_levver_mark), mainExecutor) { result ->
+  val statusBar = getSystemService(StatusBarManager::class.java)
+  statusBar.requestAddTileService(
+   ComponentName(this, QuickSettingsTileService::class.java),
+   "LEVVER VPN",
+   Icon.createWithResource(this, R.drawable.ic_levver_mark),
+   mainExecutor
+  ) { result: Int ->
    val msg = when(result) {
-    TileService.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> "Плитка LEVVER VPN добавлена."
-    TileService.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "Плитка уже добавлена."
-    else -> "Android не добавил плитку. Добавь её вручную через Изменить плитки."
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> "Плитка LEVVER VPN добавлена."
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "Плитка уже добавлена."
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> "Добавление плитки отменено."
+    else -> "Android не добавил плитку (код $result). Добавь вручную через Изменить плитки."
    }
    android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
   }
