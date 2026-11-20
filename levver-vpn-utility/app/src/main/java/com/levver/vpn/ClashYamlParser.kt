@@ -18,7 +18,7 @@ object ClashYamlParser {
     private fun toProfile(p: Map<*, *>): Profile? {
         fun value(key: String) = p[key]?.toString()?.trim().orEmpty()
         fun bool(key: String) = value(key).equals("true", true)
-        fun number(key: String, default: Int = 0) = value(key).toIntOrNull() ?: default
+        fun number(key: String, default: Int = 0) = Regex("\\d+").find(value(key))?.value?.toIntOrNull() ?: default
         val type = value("type").lowercase()
         val host = value("server")
         val port = number("port")
@@ -35,9 +35,10 @@ object ClashYamlParser {
                 val tls = tls(p, reality != null)
                 reality?.let {
                     val realityConfig = JSONObject().put("enabled", true)
-                    it["public-key"]?.toString()?.takeIf(String::isNotBlank)?.let { key -> realityConfig.put("public_key", key) }
+                    val publicKey = it["public-key"]?.toString()?.takeIf(String::isNotBlank) ?: return null
+                    realityConfig.put("public_key", publicKey)
                     it["short-id"]?.toString()?.takeIf(String::isNotBlank)?.let { id -> realityConfig.put("short_id", id) }
-                    if (realityConfig.has("public_key")) tls.put("reality", realityConfig)
+                    tls.put("reality", realityConfig)
                 }
                 if (tls.optBoolean("enabled")) out.put("tls", tls)
                 addTransport(out, value("network"), p)
