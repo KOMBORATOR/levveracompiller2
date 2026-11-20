@@ -119,9 +119,10 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
 
     private fun closeEngineLocked() {
-        runCatching { commandServer?.closeService() }
-        runCatching { commandServer?.close() }
+        val previousServer = commandServer
         commandServer = null
+        runCatching { previousServer?.closeService() }
+        runCatching { previousServer?.close() }
         runCatching { tunFd?.close() }
         tunFd = null
     }
@@ -205,7 +206,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
 
     // CommandServerHandler
-    override fun serviceStop() { stopTunnel() }
+    override fun serviceStop() { if (commandServer != null) stopTunnel() }
     override fun serviceReload() {
         val config = currentConfig ?: return
         val generation = startGeneration
