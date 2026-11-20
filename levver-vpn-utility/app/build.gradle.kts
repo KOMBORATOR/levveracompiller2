@@ -10,8 +10,8 @@ android {
         applicationId = "com.levver.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.9.0-pre-release-beta"
+        versionCode = 11
+        versionName = "1.0.0"
     }
     buildFeatures { compose = true }
     compileOptions {
