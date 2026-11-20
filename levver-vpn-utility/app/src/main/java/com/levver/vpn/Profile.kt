@@ -21,15 +21,17 @@ object ProfileParser {
         if (trimmed.startsWith("{")) {
             return try {
                 val config = JSONObject(trimmed)
-                val outbounds = config.optJSONArray("outbounds") ?: return emptyList()
-                require(outbounds.length() > 0) { "No outbounds in sing-box config" }
-                val inbounds = config.optJSONArray("inbounds") ?: return emptyList()
-                require((0 until inbounds.length()).any { inbounds.getJSONObject(it).optString("type") == "tun" }) {
-                    "The sing-box config must contain a TUN inbound"
-                }
-                listOf(Profile(trimmed.hashCode().toString(), "Пользовательская sing-box конфигурация",
-                    "sing-box JSON", trimmed, "Пользовательский сервер"))
-            } catch (_: Exception) {
+                val outbounds = config.optJSONArray("outbounds")
+                    ?: throw IllegalArgumentException("В JSON не найден массив outbounds")
+                require(outbounds.length() > 0) { "В JSON нет ни одного outbound" }
+                listOf(Profile(
+                    trimmed.hashCode().toString(),
+                    config.optString("remarks").ifBlank { "Пользовательская sing-box конфигурация" },
+                    "sing-box JSON",
+                    trimmed,
+                    "Выходов: ${outbounds.length()}"
+                ))
+            } catch (e: Exception) {
                 emptyList()
             }
         }
