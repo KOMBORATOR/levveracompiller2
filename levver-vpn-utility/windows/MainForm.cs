@@ -123,6 +123,16 @@ public sealed class MainForm : Form
     {
         try
         {
+            if (raw.StartsWith("ss://", StringComparison.OrdinalIgnoreCase) && !raw.Contains('@'))
+            {
+                var fragmentAt = raw.IndexOf('#');
+                var fragment = fragmentAt >= 0 ? raw[fragmentAt..] : "";
+                var encoded = raw[5..].Split('#','?')[0].TrimEnd('/');
+                encoded = encoded.Replace('-', '+').Replace('_', '/');
+                encoded = encoded.PadRight(encoded.Length + (4 - encoded.Length % 4) % 4, '=');
+                var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+                if (decoded.Contains('@')) return BuildUriConfig("ss://" + decoded + fragment);
+            }
             var u = new Uri(raw);
             var scheme = u.Scheme.ToLowerInvariant();
             var q = System.Web.HttpUtility.ParseQueryString(u.Query);
