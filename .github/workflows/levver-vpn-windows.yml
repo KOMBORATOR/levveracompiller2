@@ -1,0 +1,40 @@
+name: Build LEVVER VPN UTILITY Windows
+on:
+  push:
+    branches: [ "levver-vpn-utility" ]
+    paths:
+      - "levver-vpn-utility/windows/**"
+      - ".github/workflows/levver-vpn-windows.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Download sing-box core
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip" -OutFile "$env:RUNNER_TEMP\sing-box.zip"
+          Expand-Archive "$env:RUNNER_TEMP\sing-box.zip" "$env:RUNNER_TEMP\sing-box" -Force
+          $core = Get-ChildItem "$env:RUNNER_TEMP\sing-box" -Filter sing-box.exe -Recurse | Select-Object -First 1
+          if (-not $core) { throw "sing-box.exe missing from release archive" }
+          Copy-Item $core.FullName "levver-vpn-utility/windows/sing-box.exe"
+      - name: Publish Windows x64
+        run: dotnet publish levver-vpn-utility/windows/LevverVpn.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/LEVVER-VPN-UTILITY-Windows
+      - name: Package portable client
+        shell: pwsh
+        run: |
+          Copy-Item levver-vpn-utility/windows/sing-box.exe artifacts/LEVVER-VPN-UTILITY-Windows/sing-box.exe
+          Compress-Archive -Path artifacts/LEVVER-VPN-UTILITY-Windows/* -DestinationPath artifacts/LEVVER-VPN-UTILITY-1.0.0-Windows-x64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LEVVER-VPN-UTILITY-1.0.0-Windows-x64
+          path: artifacts/LEVVER-VPN-UTILITY-1.0.0-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
