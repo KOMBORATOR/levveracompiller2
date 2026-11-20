@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Navy=Color(0xFF071B35)
 private val Panel=Color(0xFF102B49)
@@ -54,6 +57,23 @@ class MainActivity:ComponentActivity(){
    var notice by remember { mutableStateOf("Добавь свой сервер, чтобы создать профиль.") }
    var input by remember { mutableStateOf("") }
    var vpnRunning by remember { mutableStateOf(false) }
+   var probeResults by remember { mutableStateOf<Map<String, ServerProbe>>(emptyMap()) }
+   val uiScope = rememberCoroutineScope()
+   fun checkAllServers() {
+    if (profiles.isEmpty()) { notice = "Сначала добавь серверы."; return }
+    notice = "Проверяем доступность серверов…"
+    uiScope.launch {
+     val results = withContext(Dispatchers.IO) {
+      profiles.associate { profile -> profile.id to ServerDiagnostics.probe(profile) }
+     }
+     probeResults = results
+     val ranked = results.entries.filter { it.value.latencyMs != null }.sortedBy { it.value.latencyMs }
+     notice = if (ranked.isEmpty()) "TCP-проверка не нашла доступных серверов. Для UDP-протоколов нужен отдельный тест." else {
+      val best = profiles.first { it.id == ranked.first().key }
+      "Лучший по TCP-задержке: ${best.name} — ${ranked.first().value.latencyMs} мс. Это предварительный результат."
+     }
+    }
+   }
    var pendingConfig by remember { mutableStateOf<String?>(null) }
    val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
     if (result.resultCode == RESULT_OK) {
@@ -79,6 +99,7 @@ class MainActivity:ComponentActivity(){
      return
     }
     pendingConfig = config
+    getSharedPreferences("levver_runtime", MODE_PRIVATE).edit().putString("last_config", config).apply()
     val permission = VpnService.prepare(this@MainActivity)
     if (permission != null) vpnPermission.launch(permission)
     else {
@@ -125,7 +146,7 @@ class MainActivity:ComponentActivity(){
     }){ pad->
      when(tab){
       0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,vpnRunning,{connectSelected()},{disconnectVpn()},Modifier.padding(pad))
-      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad))
+      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad),probeResults,{checkAllServers()})
       else->SettingsScreen(profiles.size,Modifier.padding(pad))
      }
     }
@@ -143,7 +164,7 @@ class MainActivity:ComponentActivity(){
  Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
   Image(painterResource(R.drawable.ic_levver_mark),contentDescription="LEVVER Utility",modifier=Modifier.size(42.dp))
   Spacer(Modifier.width(12.dp)); Column { Text("LEVVER",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp,letterSpacing=2.sp); Text("UTILITY",color=Pale,fontSize=10.sp,letterSpacing=1.5.sp) }
-  Spacer(Modifier.weight(1f)); Text("0.6.0",color=Pale,fontSize=11.sp)
+  Spacer(Modifier.weight(1f)); Text("0.8.0",color=Pale,fontSize=11.sp)
  }
 }
 @Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,connected:Boolean,onConnect:()->Unit,onDisconnect:()->Unit,modifier:Modifier=Modifier){
@@ -168,10 +189,10 @@ class MainActivity:ComponentActivity(){
   else Button(onClick=onConnect,enabled=active!=null,modifier=Modifier.fillMaxWidth()) { Text("Подключить") }
   Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ",if (connected) "Запуск" else "Отключён",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
-  Text("LEVVER • BUILD 0.6.0 ALPHA",color=Color(0xFF6FA6CC),fontSize=10.sp)
+  Text("LEVVER • BUILD 0.8.0 ALPHA",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
-@Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier){
+@Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {}){
  Column(modifier.fillMaxSize().padding(18.dp)){
   Header(); Spacer(Modifier.height(20.dp)); Text("Мои серверы",color=Color.White,fontSize=25.sp,fontWeight=FontWeight.Bold)
   Text("Добавляй конфигурации, которыми имеешь право пользоваться.",color=Pale,fontSize=11.sp)
@@ -182,12 +203,14 @@ class MainActivity:ComponentActivity(){
    OutlinedButton(onClick=onPaste){Icon(Icons.Default.ContentPaste,null);Text("Вставить")}
    OutlinedButton(onClick=onScan){Icon(Icons.Default.QrCodeScanner,null)}
   }
-  Text(notice,color=Pale,fontSize=11.sp); Spacer(Modifier.height(10.dp))
+  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){ Text(notice,color=Pale,fontSize=11.sp,modifier=Modifier.weight(1f)); OutlinedButton(onClick=onProbeAll){Text("Пинг / рейтинг")} }
+  Text("TCP-задержка — ориентир доступности. UDP-серверы (например, Hysteria2) этим тестом честно не сравнить.",color=Color(0xFF8EADD8),fontSize=10.sp)
+  Spacer(Modifier.height(10.dp))
   LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
    items(profiles,key={it.id}){p->
     Card(onClick={onSelect(p.id)},colors=CardDefaults.cardColors(containerColor=if(p.id==selected)Color(0xFF164B70) else Panel),shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){
      Row(Modifier.padding(13.dp),verticalAlignment=Alignment.CenterVertically){
-      Column(Modifier.weight(1f)){Text(p.name,color=Color.White,fontWeight=FontWeight.SemiBold);Text("${p.protocol} • ${p.server}",color=Pale,fontSize=11.sp)}
+      Column(Modifier.weight(1f)){Text(p.name,color=Color.White,fontWeight=FontWeight.SemiBold);Text("${p.protocol} • ${p.server}",color=Pale,fontSize=11.sp); diagnostics[p.id]?.let { result -> Text(result.latencyMs?.let { "TCP: $it мс • ${result.detail}" } ?: result.detail,color=if(result.latencyMs==null) Color(0xFFFFC078) else Color(0xFF8DE0B0),fontSize=10.sp) }}
       IconButton(onClick={onDelete(p)}){Icon(Icons.Default.Delete,null,tint=Color(0xFFFF8D8D))}
      }
     }
@@ -207,7 +230,7 @@ class MainActivity:ComponentActivity(){
 }
 @Composable private fun SettingsScreen(count:Int,modifier:Modifier=Modifier){
  Column(modifier.fillMaxSize().padding(22.dp)){Header();Spacer(Modifier.height(24.dp));Text("Настройки",color=Color.White,fontSize=26.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(16.dp))
-  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.6.0 Alpha • Original Utility mark");Spacer(Modifier.height(12.dp))
+  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.8.0 Alpha • Quick Settings + Diagnostics");Spacer(Modifier.height(12.dp))
   InfoCard("ЛОКАЛЬНЫЕ ДАННЫЕ","Сохранено профилей: $count");Spacer(Modifier.height(12.dp))
   InfoCard("БЕЗОПАСНОСТЬ","Ссылки и конфигурации могут содержать секреты доступа. Не отправляй их посторонним.")
   Spacer(Modifier.height(12.dp))
