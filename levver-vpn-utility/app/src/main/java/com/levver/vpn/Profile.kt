@@ -52,7 +52,11 @@ object ProfileParser {
         val protocol = supportedSchemes[scheme] ?: return null
         if (scheme == "vmess") {
             val payload = raw.removePrefix("vmess://").substringBefore('#')
-            val decoded = String(Base64.decode(payload, Base64.DEFAULT), Charsets.UTF_8)
+            val decoded = try {
+                String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING), Charsets.UTF_8)
+            } catch (_: Exception) {
+                String(Base64.decode(payload, Base64.DEFAULT), Charsets.UTF_8)
+            }
             val json = JSONObject(decoded)
             val host = json.optString("add").ifBlank { "unknown" }
             val label = json.optString("ps").ifBlank { "$protocol — $host" }
