@@ -72,18 +72,20 @@ class MainActivity:ComponentActivity(){
    fun connectSelected() {
     val profile = profiles.firstOrNull { it.id == selected }
     if (profile == null) { notice = "Сначала выбери профиль."; return }
-    if (!profile.raw.trim().startsWith("{")) {
-     notice = "Для первого реального подключения импортируй полный sing-box JSON с TUN inbound. Конвертер ссылок ещё готовится."
+    val config = try {
+     SingBoxConfigBuilder.build(profile)
+    } catch (e: Exception) {
+     notice = e.message ?: "Не удалось подготовить конфигурацию."
      return
     }
-    pendingConfig = profile.raw
+    pendingConfig = config
     val permission = VpnService.prepare(this@MainActivity)
     if (permission != null) vpnPermission.launch(permission)
     else {
      ContextCompat.startForegroundService(this@MainActivity,
       Intent(this@MainActivity, LevverVpnService::class.java)
        .setAction(LevverVpnService.ACTION_START)
-       .putExtra(LevverVpnService.EXTRA_CONFIG, profile.raw))
+       .putExtra(LevverVpnService.EXTRA_CONFIG, config))
      vpnRunning = true
      notice = "Запрос на подключение отправлен. Статус появится в уведомлении LEVVER."
     }
