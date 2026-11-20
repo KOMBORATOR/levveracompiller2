@@ -237,7 +237,7 @@ class MainActivity:ComponentActivity(){
  Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
   Image(painterResource(R.drawable.ic_levver_mark),contentDescription="LEVVER Utility",modifier=Modifier.size(42.dp))
   Spacer(Modifier.width(12.dp)); Column { Text("LEVVER",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp,letterSpacing=2.sp); Text("UTILITY",color=Pale,fontSize=10.sp,letterSpacing=1.5.sp) }
-  Spacer(Modifier.weight(1f)); Text("0.9.0",color=Pale,fontSize=11.sp)
+  Spacer(Modifier.weight(1f)); Text("1.0.0",color=Pale,fontSize=11.sp)
  }
 }
 @Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,connected:Boolean,onConnect:()->Unit,onDisconnect:()->Unit,modifier:Modifier=Modifier){
@@ -262,7 +262,7 @@ class MainActivity:ComponentActivity(){
   else Button(onClick=onConnect,enabled=active!=null,modifier=Modifier.fillMaxWidth()) { Text("Подключить") }
   Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ",if (connected) "Запуск" else "Отключён",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
-  Text("LEVVER • BUILD 0.9.0 BETA PRE-RELEASE",color=Color(0xFF6FA6CC),fontSize=10.sp)
+ 
  }
 }
 @Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {},onPickJson:()->Unit = {},onRefreshSubscriptions:()->Unit = {}){
@@ -311,6 +311,6 @@ class MainActivity:ComponentActivity(){
   InfoCard("ЛОКАЛЬНЫЕ ДАННЫЕ","Сохранено профилей: $count");Spacer(Modifier.height(12.dp))
   InfoCard("БЕЗОПАСНОСТЬ","Ссылки и конфигурации могут содержать секреты доступа. Не отправляй их посторонним.")
   Spacer(Modifier.height(12.dp))
-  InfoCard("ЛИЦЕНЗИИ","Перед выпуском с VPN-движком будут добавлены все требуемые лицензии и уведомления.")
+  InfoCard("ЛИЦЕНЗИИ","VPN-движок sing-box распространяется по GPL-3.0-or-later.")
  }
 }
