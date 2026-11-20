@@ -47,7 +47,8 @@ class ProfileStore(context: Context) {
                 .put("name", profile.name)
                 .put("protocol", profile.protocol)
                 .put("raw", profile.raw)
-                .put("server", profile.server))
+                .put("server", profile.server)
+                .put("subscriptionUrl", profile.subscriptionUrl))
         }
         prefs.edit().putString("items", prefix + encrypt(array.toString())).apply()
     }
@@ -57,7 +58,8 @@ class ProfileStore(context: Context) {
         return (0 until array.length()).map { index ->
             val item = array.getJSONObject(index)
             Profile(item.getString("id"), item.getString("name"), item.getString("protocol"),
-                item.getString("raw"), item.getString("server"))
+                item.getString("raw"), item.getString("server"),
+                if (item.isNull("subscriptionUrl")) null else item.optString("subscriptionUrl").takeIf { it.isNotBlank() })
         }
     }
 
