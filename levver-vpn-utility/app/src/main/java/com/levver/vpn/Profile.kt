@@ -49,10 +49,10 @@ object ProfileParser {
     fun parseSubscription(input: String, sourceUrl: String): List<Profile> {
         val original = input.trim()
         require(original.isNotEmpty()) { "Подписка пуста" }
-        var parsed = if (original.startsWith("{") && sourceUrl != "local-import") {
-            parseSingBoxSubscription(original)
-        } else {
-            parse(original)
+        var parsed = when {
+            original.startsWith("{") && sourceUrl != "local-import" -> parseSingBoxSubscription(original)
+            original.contains("proxies:") -> ClashYamlParser.parse(original)
+            else -> parse(original)
         }
         if (parsed.isEmpty() && !original.startsWith("{")) {
             val decoded = runCatching {
