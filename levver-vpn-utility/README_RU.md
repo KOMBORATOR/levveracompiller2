@@ -37,3 +37,11 @@ libbox распространяется по GPL-3.0-or-later. До публик
 ## Известные ограничения
 - TCP latency — только предварительная оценка доступности порта; лучший результат не гарантирует лучшую пропускную способность, стабильность или географически лучший сервер.
 - Для честного сравнения Hysteria2/UDP и проверки VPN end-to-end нужно добавить тест через sing-box URLTest или отдельную диагностическую операцию движка.
+
+
+## 0.8.1 Beta Pre-release
+- Android 13+: added a system prompt to add the LEVVER VPN Quick Settings tile from Settings.
+- Fixed libbox StringIterator length reporting and guarded connection-owner lookup.
+- Added share-link conversion for VMess, Trojan, Shadowsocks (modern URI form), SOCKS5, TUIC and AnyTLS alongside VLESS and Hysteria2.
+- Import recognition does not guarantee successful connection; server-specific transport options still need validation on a real device.
+- CI success confirms compilation/tests only. Real tunnel operation and tile appearance must be checked on Android hardware.
