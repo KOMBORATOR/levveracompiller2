@@ -6,6 +6,9 @@ on:
       - "levver-vpn-utility/**"
       - ".github/workflows/levver-vpn-android.yml"
   workflow_dispatch:
+concurrency:
+  group: levver-vpn-utility-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
