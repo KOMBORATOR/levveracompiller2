@@ -136,6 +136,17 @@ class MainActivity:ComponentActivity(){
     }
    }
    val qr=rememberLauncherForActivityResult(ScanContract()){ result->result.contents?.let{importProfileText(it)} }
+   val jsonPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    if (uri != null) {
+     runCatching {
+      contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+       ?: error("Не удалось открыть файл.")
+     }.onSuccess { fileText ->
+      if (fileText.length > 3_000_000) notice = "JSON слишком большой (лимит 3 МБ)."
+      else importProfileText(fileText)
+     }.onFailure { e -> notice = e.message ?: "Не удалось прочитать JSON-файл." }
+    }
+   }
    LaunchedEffect(Unit) {
     val sharedText = intent?.getStringExtra(Intent.EXTRA_TEXT)
     val deepLink = intent?.dataString
@@ -154,7 +165,7 @@ class MainActivity:ComponentActivity(){
     }){ pad->
      when(tab){
       0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,vpnRunning,{connectSelected()},{disconnectVpn()},Modifier.padding(pad))
-      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad),probeResults,{checkAllServers()})
+      1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad),probeResults,{checkAllServers()},{jsonPicker.launch(arrayOf("application/json","text/*","application/octet-stream"))})
       else->SettingsScreen(profiles.size,Modifier.padding(pad),{ requestQuickSettingsTile() })
      }
     }
@@ -203,7 +214,7 @@ class MainActivity:ComponentActivity(){
    Box(Modifier.size(126.dp),contentAlignment=Alignment.Center){Image(painterResource(R.drawable.ic_levver_mark),contentDescription="Логотип LEVVER",modifier=Modifier.size(100.dp))}
   }
   Spacer(Modifier.height(22.dp)); Text("LEVVER UTILITY",color=Color.White,fontWeight=FontWeight.Bold,fontSize=21.sp)
-  Text("Универсальный VPN-клиент на sing-box",color=Pale,fontSize=12.sp)
+  Text("VPN-клиент • ссылки и sing-box JSON",color=Pale,fontSize=12.sp)
   Spacer(Modifier.height(18.dp))
   Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF3A2B18)),shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()){
    Column(Modifier.padding(14.dp)){
@@ -221,17 +232,19 @@ class MainActivity:ComponentActivity(){
   Text("LEVVER • BUILD 0.8.1 BETA",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
-@Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {}){
+@Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {},onPickJson:()->Unit = {}){
  Column(modifier.fillMaxSize().padding(18.dp)){
   Header(); Spacer(Modifier.height(20.dp)); Text("Мои серверы",color=Color.White,fontSize=25.sp,fontWeight=FontWeight.Bold)
   Text("Добавляй конфигурации, которыми имеешь право пользоваться.",color=Pale,fontSize=11.sp)
   Spacer(Modifier.height(14.dp))
-  OutlinedTextField(value=input,onValueChange=onInput,modifier=Modifier.fillMaxWidth(),label={Text("Ссылка или несколько ссылок")},minLines=2,maxLines=5,colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Sky,focusedLabelColor=Sky))
+  OutlinedTextField(value=input,onValueChange=onInput,modifier=Modifier.fillMaxWidth(),label={Text("Ссылка, JSON или несколько ссылок")},minLines=2,maxLines=5,colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Sky,focusedLabelColor=Sky))
   Spacer(Modifier.height(8.dp)); Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
    Button(onClick=onImport,modifier=Modifier.weight(1f)){Icon(Icons.Default.Add,null);Text("Импорт")}
    OutlinedButton(onClick=onPaste){Icon(Icons.Default.ContentPaste,null);Text("Вставить")}
    OutlinedButton(onClick=onScan){Icon(Icons.Default.QrCodeScanner,null)}
   }
+  OutlinedButton(onClick=onPickJson,modifier=Modifier.fillMaxWidth()){Text("Выбрать JSON-файл")}
+  Text("Можно импортировать полную конфигурацию или JSON только с outbounds — TUN добавится автоматически.",color=Color(0xFF8EADD8),fontSize=10.sp)
   Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){ Text(notice,color=Pale,fontSize=11.sp,modifier=Modifier.weight(1f)); OutlinedButton(onClick=onProbeAll){Text("Пинг / рейтинг")} }
   Text("TCP-задержка — ориентир доступности. UDP-серверы (например, Hysteria2) этим тестом честно не сравнить.",color=Color(0xFF8EADD8),fontSize=10.sp)
   Spacer(Modifier.height(10.dp))
