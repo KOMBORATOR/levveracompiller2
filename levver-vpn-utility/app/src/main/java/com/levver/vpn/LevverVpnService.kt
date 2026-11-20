@@ -86,7 +86,7 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             tempPath = temp.absolutePath
             fixAndroidStack = true
             logMaxLines = 1000
-            debug = BuildConfig.DEBUG
+            debug = false
         }
         Libbox.setup(options)
     }
