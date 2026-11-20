@@ -4,6 +4,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.content.ComponentName
+import android.graphics.drawable.Icon
+import android.service.quicksettings.TileService
 import android.os.Bundle
 import android.os.Build
 import androidx.activity.ComponentActivity
@@ -151,10 +154,25 @@ class MainActivity:ComponentActivity(){
      when(tab){
       0->HomeScreen(profiles.size,profiles.firstOrNull{it.id==selected},notice,vpnRunning,{connectSelected()},{disconnectVpn()},Modifier.padding(pad))
       1->ProfilesScreen(profiles,input,{input=it},notice,{importProfileText(input)},{pasteFromClipboard()?.let{importProfileText(it)}?:run{notice="Буфер обмена пуст."}},{qr.launch(ScanOptions().setPrompt("Наведите камеру на QR-код").setBeepEnabled(false).setOrientationLocked(false))},{p->profiles=profiles.filterNot{it.id==p.id};store.save(profiles);if(selected==p.id)selected=profiles.firstOrNull()?.id;notice="Профиль удалён."},{selected=it},selected,Modifier.padding(pad),probeResults,{checkAllServers()})
-      else->SettingsScreen(profiles.size,Modifier.padding(pad))
+      else->SettingsScreen(profiles.size,Modifier.padding(pad),{ requestQuickSettingsTile() })
      }
     }
    }
+  }
+ }
+ private fun requestQuickSettingsTile() {
+  if (Build.VERSION.SDK_INT < 33) {
+   android.widget.Toast.makeText(this, "Открой шторку Android → Изменить → добавь LEVVER VPN вручную.", android.widget.Toast.LENGTH_LONG).show()
+   return
+  }
+  TileService.requestAddTileService(this, ComponentName(this, QuickSettingsTileService::class.java),
+   "LEVVER VPN", Icon.createWithResource(this, R.drawable.ic_levver_mark), mainExecutor) { result ->
+   val msg = when(result) {
+    TileService.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> "Плитка LEVVER VPN добавлена."
+    TileService.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "Плитка уже добавлена."
+    else -> "Android не добавил плитку. Добавь её вручную через Изменить плитки."
+   }
+   android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
   }
  }
  private fun pasteFromClipboard():String?{
@@ -168,7 +186,7 @@ class MainActivity:ComponentActivity(){
  Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
   Image(painterResource(R.drawable.ic_levver_mark),contentDescription="LEVVER Utility",modifier=Modifier.size(42.dp))
   Spacer(Modifier.width(12.dp)); Column { Text("LEVVER",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp,letterSpacing=2.sp); Text("UTILITY",color=Pale,fontSize=10.sp,letterSpacing=1.5.sp) }
-  Spacer(Modifier.weight(1f)); Text("0.8.0",color=Pale,fontSize=11.sp)
+  Spacer(Modifier.weight(1f)); Text("0.8.1",color=Pale,fontSize=11.sp)
  }
 }
 @Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,connected:Boolean,onConnect:()->Unit,onDisconnect:()->Unit,modifier:Modifier=Modifier){
@@ -193,7 +211,7 @@ class MainActivity:ComponentActivity(){
   else Button(onClick=onConnect,enabled=active!=null,modifier=Modifier.fillMaxWidth()) { Text("Подключить") }
   Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ",if (connected) "Запуск" else "Отключён",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
-  Text("LEVVER • BUILD 0.8.0 ALPHA",color=Color(0xFF6FA6CC),fontSize=10.sp)
+  Text("LEVVER • BUILD 0.8.1 BETA",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
 @Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {}){
@@ -232,9 +250,11 @@ class MainActivity:ComponentActivity(){
   Column(Modifier.padding(14.dp)){Text(title,color=Pale,fontSize=10.sp);Spacer(Modifier.height(7.dp));Text(value,color=Color.White,fontWeight=FontWeight.Bold)}
  }
 }
-@Composable private fun SettingsScreen(count:Int,modifier:Modifier=Modifier){
+@Composable private fun SettingsScreen(count:Int,modifier:Modifier=Modifier,onAddTile:()->Unit){
  Column(modifier.fillMaxSize().padding(22.dp)){Header();Spacer(Modifier.height(24.dp));Text("Настройки",color=Color.White,fontSize=26.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(16.dp))
-  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.8.0 Alpha • Quick Settings + Diagnostics");Spacer(Modifier.height(12.dp))
+  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.8.1 Beta Pre-release • sing-box");Spacer(Modifier.height(12.dp))
+  Button(onClick=onAddTile,modifier=Modifier.fillMaxWidth()){Text("Добавить плитку LEVVER VPN в шторку Android")}
+  Spacer(Modifier.height(12.dp))
   InfoCard("ЛОКАЛЬНЫЕ ДАННЫЕ","Сохранено профилей: $count");Spacer(Modifier.height(12.dp))
   InfoCard("БЕЗОПАСНОСТЬ","Ссылки и конфигурации могут содержать секреты доступа. Не отправляй их посторонним.")
   Spacer(Modifier.height(12.dp))
