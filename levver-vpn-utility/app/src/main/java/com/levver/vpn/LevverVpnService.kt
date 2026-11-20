@@ -193,15 +193,28 @@ class LevverVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 val dns = options.dnsServerAddress
                 while (dns.hasNext()) builder.addDnsServer(dns.next())
             }
-            val routes4 = options.inet4RouteAddress
-            while (routes4.hasNext()) {
-                val route = routes4.next()
-                builder.addRoute(route.address(), route.prefix())
-            }
-            val routes6 = options.inet6RouteAddress
-            while (routes6.hasNext()) {
-                val route = routes6.next()
-                builder.addRoute(route.address(), route.prefix())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val routes4 = options.inet4RouteAddress
+                while (routes4.hasNext()) {
+                    val route = routes4.next()
+                    builder.addRoute(route.address(), route.prefix())
+                }
+                val routes6 = options.inet6RouteAddress
+                while (routes6.hasNext()) {
+                    val route = routes6.next()
+                    builder.addRoute(route.address(), route.prefix())
+                }
+            } else {
+                val routes4 = options.inet4RouteRange
+                while (routes4.hasNext()) {
+                    val route = routes4.next()
+                    builder.addRoute(route.address(), route.prefix())
+                }
+                val routes6 = options.inet6RouteRange
+                while (routes6.hasNext()) {
+                    val route = routes6.next()
+                    builder.addRoute(route.address(), route.prefix())
+                }
             }
         }
         val descriptor = builder.establish() ?: error("Android did not establish the VPN interface")
