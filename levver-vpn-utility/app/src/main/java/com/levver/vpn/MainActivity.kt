@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -49,6 +50,9 @@ private val Pale=Color(0xFFBBD3FF)
 class MainActivity:ComponentActivity(){
  override fun onCreate(savedInstanceState:Bundle?){
   super.onCreate(savedInstanceState)
+  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+   requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 740)
+  }
   val store=ProfileStore(this)
   setContent {
    var profiles by remember { mutableStateOf(store.load()) }
