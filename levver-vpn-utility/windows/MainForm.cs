@@ -110,7 +110,7 @@ public sealed class MainForm : Form
             try { input = Encoding.UTF8.GetString(Convert.FromBase64String(input)); } catch { }
         }
         var result = new List<ProfileItem>();
-        foreach (var line in input.Split(new[] { '\\r', '\\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var line in input.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (line.StartsWith("#") || line.StartsWith("https://")) continue;
             var uri = BuildUriConfig(line);
