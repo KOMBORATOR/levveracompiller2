@@ -25,12 +25,18 @@ jobs:
           $core = Get-ChildItem "$env:RUNNER_TEMP\sing-box" -Filter sing-box.exe -Recurse | Select-Object -First 1
           if (-not $core) { throw "sing-box.exe missing from release archive" }
           Copy-Item $core.FullName "levver-vpn-utility/windows/sing-box.exe"
+          Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile "$env:RUNNER_TEMP\\wintun.zip"
+          Expand-Archive "$env:RUNNER_TEMP\\wintun.zip" "$env:RUNNER_TEMP\\wintun" -Force
+          $driver = Get-ChildItem "$env:RUNNER_TEMP\\wintun" -Filter wintun.dll -Recurse | Where-Object { $_.FullName -match "amd64" } | Select-Object -First 1
+          if (-not $driver) { throw "64-bit wintun.dll missing from official archive" }
+          Copy-Item $driver.FullName "levver-vpn-utility/windows/wintun.dll"
       - name: Publish Windows x64
         run: dotnet publish levver-vpn-utility/windows/LevverVpn.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/LEVVER-VPN-UTILITY-Windows
       - name: Package portable client
         shell: pwsh
         run: |
           Copy-Item levver-vpn-utility/windows/sing-box.exe artifacts/LEVVER-VPN-UTILITY-Windows/sing-box.exe
+          Copy-Item levver-vpn-utility/windows/wintun.dll artifacts/LEVVER-VPN-UTILITY-Windows/wintun.dll
           Compress-Archive -Path artifacts/LEVVER-VPN-UTILITY-Windows/* -DestinationPath artifacts/LEVVER-VPN-UTILITY-1.0.0-Windows-x64.zip -Force
       - uses: actions/upload-artifact@v4
         with:
