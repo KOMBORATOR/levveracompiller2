@@ -2,6 +2,7 @@ package com.levver.vpn
 
 import org.json.JSONArray
 import org.json.JSONObject
+import android.util.Base64
 import java.net.URI
 import java.net.URLDecoder
 
@@ -25,6 +26,7 @@ object SingBoxConfigBuilder {
             return config.toString()
         }
 
+        if (raw.startsWith("vmess://", ignoreCase = true)) return baseConfig(vmess(raw)).toString()
         val uri = URI(raw)
         val scheme = uri.scheme?.lowercase() ?: error("Неизвестная схема ссылки")
         val query = parseQuery(uri.rawQuery)
@@ -33,9 +35,94 @@ object SingBoxConfigBuilder {
         val outbound = when (scheme) {
             "vless" -> vless(uri, query, host, port)
             "hysteria2", "hy2" -> hysteria2(uri, query, host, port)
-            else -> error("Преобразование $scheme пока не реализовано. На первом этапе доступны VLESS и Hysteria2.")
+            "trojan" -> trojan(uri, query, host, port)
+            "ss" -> shadowsocks(uri, host, port)
+            "socks", "socks5", "socks5h" -> socks(uri, host, port)
+            "tuic" -> tuic(uri, query, host, port)
+            "anytls" -> anytls(uri, query, host, port)
+            else -> error("Формат $scheme пока не поддерживается движком LEVVER.")
         }
         return baseConfig(outbound).toString()
+    }
+
+
+    private fun vmess(raw: String): JSONObject {
+        val encoded=raw.substringAfter("://").substringBefore('#')
+        val decoded=try { String(Base64.decode(encoded,Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING),Charsets.UTF_8) }
+            catch (_:Exception) { String(Base64.decode(encoded,Base64.DEFAULT),Charsets.UTF_8) }
+        val data=JSONObject(decoded)
+        val host=data.optString("add").takeIf { it.isNotBlank() } ?: error("VMess: нет адреса")
+        val port=data.optString("port").toIntOrNull()?.takeIf { it in 1..65535 } ?: error("VMess: неверный порт")
+        val uuid=data.optString("id").takeIf { it.isNotBlank() } ?: error("VMess: нет UUID")
+        val out=JSONObject().put("type","vmess").put("tag","proxy").put("server",host).put("server_port",port)
+            .put("uuid",uuid).put("security",data.optString("scy").ifBlank { "auto" }).put("alter_id",data.optInt("aid",0))
+        if(data.optString("tls").equals("tls",true)) {
+            val tls=JSONObject().put("enabled",true)
+            val sni=data.optString("sni").ifBlank { data.optString("host") }
+            if(sni.isNotBlank()) tls.put("server_name",sni)
+            out.put("tls",tls)
+        }
+        when(data.optString("net").lowercase()) {
+            "", "tcp" -> Unit
+            "ws" -> {
+                val t=JSONObject().put("type","ws")
+                if(data.optString("path").isNotBlank()) t.put("path",data.optString("path"))
+                if(data.optString("host").isNotBlank()) t.put("headers",JSONObject().put("Host",data.optString("host")))
+                out.put("transport",t)
+            }
+            "grpc" -> {
+                val t=JSONObject().put("type","grpc")
+                if(data.optString("path").isNotBlank()) t.put("service_name",data.optString("path"))
+                out.put("transport",t)
+            }
+            else -> error("VMess: транспорт не поддерживается")
+        }
+        return out
+    }
+
+    private fun trojan(uri: URI, q: Map<String,String>, host: String, port: Int): JSONObject {
+        val pass=decode(uri.rawUserInfo.orEmpty()).substringBefore(':').takeIf { it.isNotBlank() } ?: error("Trojan: нет пароля")
+        val out=JSONObject().put("type","trojan").put("tag","proxy").put("server",host).put("server_port",port).put("password",pass)
+        val tls=JSONObject().put("enabled",true)
+        q["sni"]?.takeIf { it.isNotBlank() }?.let { tls.put("server_name",it) }
+        q["fp"]?.takeIf { it.isNotBlank() }?.let { tls.put("utls",JSONObject().put("enabled",true).put("fingerprint",it)) }
+        if(q["insecure"]=="1" || q["allowInsecure"]=="1") tls.put("insecure",true)
+        out.put("tls",tls)
+        return out
+    }
+
+    private fun shadowsocks(uri: URI, host: String, port: Int): JSONObject {
+        val auth=decode(uri.rawUserInfo.orEmpty())
+        val method=auth.substringBefore(':').takeIf { it.isNotBlank() } ?: error("Shadowsocks: ссылка должна содержать method:password@host")
+        val pass=auth.substringAfter(':',"").takeIf { it.isNotBlank() } ?: error("Shadowsocks: нет пароля")
+        return JSONObject().put("type","shadowsocks").put("tag","proxy").put("server",host).put("server_port",port).put("method",method).put("password",pass)
+    }
+
+    private fun socks(uri: URI, host: String, port: Int): JSONObject {
+        val out=JSONObject().put("type","socks").put("tag","proxy").put("server",host).put("server_port",port).put("version","5")
+        uri.rawUserInfo?.let { raw -> val auth=decode(raw); if(auth.contains(':')) { out.put("username",auth.substringBefore(':')); out.put("password",auth.substringAfter(':')) } }
+        return out
+    }
+
+    private fun tuic(uri: URI, q: Map<String,String>, host: String, port: Int): JSONObject {
+        val c=decode(uri.rawUserInfo.orEmpty()).split(':',limit=2)
+        require(c.size==2 && c.all { it.isNotBlank() }) { "TUIC: нужны UUID:пароль" }
+        val out=JSONObject().put("type","tuic").put("tag","proxy").put("server",host).put("server_port",port)
+            .put("uuid",c[0]).put("password",c[1]).put("congestion_control",q["congestion_control"] ?: "bbr")
+            .put("udp_relay_mode",q["udp_relay_mode"] ?: "native")
+        val tls=JSONObject().put("enabled",true)
+        q["sni"]?.takeIf { it.isNotBlank() }?.let { tls.put("server_name",it) }
+        out.put("tls",tls)
+        return out
+    }
+
+    private fun anytls(uri: URI, q: Map<String,String>, host: String, port: Int): JSONObject {
+        val pass=decode(uri.rawUserInfo.orEmpty()).takeIf { it.isNotBlank() } ?: error("AnyTLS: нет пароля")
+        val out=JSONObject().put("type","anytls").put("tag","proxy").put("server",host).put("server_port",port).put("password",pass)
+        val tls=JSONObject().put("enabled",true)
+        q["sni"]?.takeIf { it.isNotBlank() }?.let { tls.put("server_name",it) }
+        out.put("tls",tls)
+        return out
     }
 
     private fun vless(uri: URI, q: Map<String, String>, host: String, port: Int): JSONObject {
