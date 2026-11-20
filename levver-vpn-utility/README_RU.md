@@ -45,3 +45,13 @@ libbox распространяется по GPL-3.0-or-later. До публик
 - Added share-link conversion for VMess, Trojan, Shadowsocks (modern URI form), SOCKS5, TUIC and AnyTLS alongside VLESS and Hysteria2.
 - Import recognition does not guarantee successful connection; server-specific transport options still need validation on a real device.
 - CI success confirms compilation/tests only. Real tunnel operation and tile appearance must be checked on Android hardware.
+
+
+## 0.9.0 Beta Pre-release
+- Accepts sing-box JSON exports with `outbounds` even when they do not include an Android TUN inbound.
+- Adds a TUN inbound, direct outbound and default route when missing; existing full configs are preserved and normalized.
+- Adds Android document-picker import for `.json` files (3 MB import limit).
+- Share links continue to be converted into sing-box JSON before the engine starts.
+- Engine setup is performed once per service instance; previous command-server instances are closed before reconnect.
+- Connection errors remain visible as a separate notification instead of being immediately replaced by a disconnect message.
+- Supported links remain subject to engine schema compatibility and real-device testing. No server credentials are included in the app.
