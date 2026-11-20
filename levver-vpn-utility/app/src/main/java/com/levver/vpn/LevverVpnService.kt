@@ -18,6 +18,7 @@ import java.net.Inet6Address
 import java.net.NetworkInterface as JavaNetworkInterface
 import java.util.Collections
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.withLock
 
 /**
  * LEVVER's Android VPN host for the official sing-box libbox engine.
