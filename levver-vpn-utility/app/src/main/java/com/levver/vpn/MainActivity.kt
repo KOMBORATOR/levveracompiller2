@@ -204,7 +204,7 @@ class MainActivity:ComponentActivity(){
  Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
   Image(painterResource(R.drawable.ic_levver_mark),contentDescription="LEVVER Utility",modifier=Modifier.size(42.dp))
   Spacer(Modifier.width(12.dp)); Column { Text("LEVVER",color=Color.White,fontWeight=FontWeight.Bold,fontSize=19.sp,letterSpacing=2.sp); Text("UTILITY",color=Pale,fontSize=10.sp,letterSpacing=1.5.sp) }
-  Spacer(Modifier.weight(1f)); Text("0.8.1",color=Pale,fontSize=11.sp)
+  Spacer(Modifier.weight(1f)); Text("0.9.0",color=Pale,fontSize=11.sp)
  }
 }
 @Composable private fun HomeScreen(count:Int,active:Profile?,notice:String,connected:Boolean,onConnect:()->Unit,onDisconnect:()->Unit,modifier:Modifier=Modifier){
@@ -229,7 +229,7 @@ class MainActivity:ComponentActivity(){
   else Button(onClick=onConnect,enabled=active!=null,modifier=Modifier.fillMaxWidth()) { Text("Подключить") }
   Spacer(Modifier.height(12.dp)); Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("ПРОФИЛИ",count.toString(),Modifier.weight(1f));Metric("VPN-ТУННЕЛЬ",if (connected) "Запуск" else "Отключён",Modifier.weight(1f))}
   Spacer(Modifier.weight(1f)); Text(notice,color=Pale,fontSize=12.sp)
-  Text("LEVVER • BUILD 0.8.1 BETA",color=Color(0xFF6FA6CC),fontSize=10.sp)
+  Text("LEVVER • BUILD 0.9.0 BETA PRE-RELEASE",color=Color(0xFF6FA6CC),fontSize=10.sp)
  }
 }
 @Composable private fun ProfilesScreen(profiles:List<Profile>,input:String,onInput:(String)->Unit,notice:String,onImport:()->Unit,onPaste:()->Unit,onScan:()->Unit,onDelete:(Profile)->Unit,onSelect:(String)->Unit,selected:String?,modifier:Modifier=Modifier,diagnostics:Map<String,ServerProbe> = emptyMap(),onProbeAll:()->Unit = {},onPickJson:()->Unit = {}){
@@ -272,7 +272,7 @@ class MainActivity:ComponentActivity(){
 }
 @Composable private fun SettingsScreen(count:Int,modifier:Modifier=Modifier,onAddTile:()->Unit){
  Column(modifier.fillMaxSize().padding(22.dp)){Header();Spacer(Modifier.height(24.dp));Text("Настройки",color=Color.White,fontSize=26.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(16.dp))
-  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.8.1 Beta Pre-release • sing-box");Spacer(Modifier.height(12.dp))
+  InfoCard("О ПРИЛОЖЕНИИ","LEVVER Utility\nВерсия 0.9.0 Beta Pre-release • sing-box");Spacer(Modifier.height(12.dp))
   Button(onClick=onAddTile,modifier=Modifier.fillMaxWidth()){Text("Добавить плитку LEVVER VPN в шторку Android")}
   Spacer(Modifier.height(12.dp))
   InfoCard("ЛОКАЛЬНЫЕ ДАННЫЕ","Сохранено профилей: $count");Spacer(Modifier.height(12.dp))
