@@ -5,7 +5,7 @@ import org.json.JSONObject
 import java.net.URI
 import java.net.URLDecoder
 
-data class Profile(val id: String, val name: String, val protocol: String, val raw: String, val server: String)
+data class Profile(val id: String, val name: String, val protocol: String, val raw: String, val server: String, val subscriptionUrl: String? = null)
 
 object ProfileParser {
     private val supportedSchemes = mapOf(
@@ -44,6 +44,20 @@ object ProfileParser {
             }
         }
         return candidates.mapNotNull(::parseOne).distinctBy { it.raw }
+    }
+
+    fun parseSubscription(input: String, sourceUrl: String): List<Profile> {
+        val original = input.trim()
+        require(original.isNotEmpty()) { "Подписка пуста" }
+        var parsed = parse(original)
+        if (parsed.isEmpty() && !original.startsWith("{")) {
+            val decoded = runCatching {
+                String(Base64.decode(original.replace("\\s".toRegex(), ""), Base64.DEFAULT), Charsets.UTF_8)
+            }.getOrNull()
+            if (!decoded.isNullOrBlank()) parsed = parse(decoded)
+        }
+        require(parsed.isNotEmpty()) { "Подписка не содержит поддерживаемых профилей" }
+        return parsed.distinctBy { it.raw }.map { it.copy(subscriptionUrl = sourceUrl) }
     }
 
     private fun parseOne(raw: String): Profile? {
