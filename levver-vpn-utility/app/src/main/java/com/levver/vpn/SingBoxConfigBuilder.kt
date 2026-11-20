@@ -14,17 +14,7 @@ import java.net.URLDecoder
 object SingBoxConfigBuilder {
     fun build(profile: Profile): String {
         val raw = profile.raw.trim()
-        if (raw.startsWith("{")) {
-            val config = JSONObject(raw)
-            val inbounds = config.optJSONArray("inbounds") ?: error("В JSON нет inbounds")
-            require((0 until inbounds.length()).any { inbounds.getJSONObject(it).optString("type") == "tun" }) {
-                "В sing-box JSON нужен inbound типа tun"
-            }
-            require(config.optJSONArray("outbounds")?.length()?.let { it > 0 } == true) {
-                "В JSON нет outbounds"
-            }
-            return config.toString()
-        }
+        if (raw.startsWith("{")) return normalizeJsonConfig(JSONObject(raw)).toString()
 
         if (raw.startsWith("vmess://", ignoreCase = true)) return baseConfig(vmess(raw)).toString()
         val uri = URI(raw)
@@ -45,6 +35,53 @@ object SingBoxConfigBuilder {
         return baseConfig(outbound).toString()
     }
 
+
+
+    /**
+     * Accepts either a complete sing-box config or an outbound-only JSON export.
+     * Adds the Android TUN inbound and a sensible final route when they are absent.
+     */
+    private fun normalizeJsonConfig(config: JSONObject): JSONObject {
+        val outbounds = config.optJSONArray("outbounds")
+            ?: error("В JSON не найден массив outbounds")
+        require(outbounds.length() > 0) { "В JSON нет ни одного outbound" }
+
+        var firstProxyTag: String? = null
+        var hasDirect = false
+        for (i in 0 until outbounds.length()) {
+            val outbound = outbounds.optJSONObject(i) ?: error("outbounds[$i] должен быть JSON-объектом")
+            var tag = outbound.optString("tag")
+            if (tag.isBlank()) {
+                tag = if (i == 0) "proxy" else "outbound-$i"
+                outbound.put("tag", tag)
+            }
+            if (outbound.optString("type") == "direct") hasDirect = true
+            if (firstProxyTag == null && outbound.optString("type") != "direct" && outbound.optString("type") != "block") {
+                firstProxyTag = tag
+            }
+        }
+        require(firstProxyTag != null) { "В JSON нет прокси outbound (только direct/block)" }
+        if (!hasDirect) outbounds.put(JSONObject().put("type", "direct").put("tag", "direct"))
+
+        val inbounds = config.optJSONArray("inbounds") ?: JSONArray().also { config.put("inbounds", it) }
+        val hasTun = (0 until inbounds.length()).any { inbounds.optJSONObject(it)?.optString("type") == "tun" }
+        if (!hasTun) {
+            inbounds.put(JSONObject()
+                .put("type", "tun")
+                .put("tag", "tun-in")
+                .put("interface_name", "levver-tun")
+                .put("address", JSONArray().put("172.19.0.1/30").put("fdfe:dcba:9876::1/126"))
+                .put("mtu", 1400)
+                .put("auto_route", true)
+                .put("strict_route", true))
+        }
+
+        val route = config.optJSONObject("route") ?: JSONObject().also { config.put("route", it) }
+        if (!route.has("auto_detect_interface")) route.put("auto_detect_interface", true)
+        if (route.optString("final").isBlank()) route.put("final", firstProxyTag)
+        if (!config.has("log")) config.put("log", JSONObject().put("level", "warn"))
+        return config
+    }
 
     private fun vmess(raw: String): JSONObject {
         val encoded=raw.substringAfter("://").substringBefore('#')
