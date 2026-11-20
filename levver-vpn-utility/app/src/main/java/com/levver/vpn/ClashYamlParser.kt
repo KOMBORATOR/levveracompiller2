@@ -75,10 +75,10 @@ object ClashYamlParser {
                 if (password.isBlank()) return null
                 out.put("type", "hysteria2").put("password", password)
                 out.put("tls", tls(p, false).put("enabled", true))
-                val obfs = p["obfs"] as? Map<*, *>
-                if (obfs != null && obfs["type"]?.toString() == "salamander") {
-                    val secret = obfs["password"]?.toString().orEmpty()
-                    if (secret.isNotBlank()) out.put("obfs", JSONObject().put("type", "salamander").put("password", secret))
+                val obfsType = value("obfs")
+                val obfsPassword = value("obfs-password")
+                if (obfsType == "salamander" && obfsPassword.isNotBlank()) {
+                    out.put("obfs", JSONObject().put("type", "salamander").put("password", obfsPassword))
                 }
             }
             "hysteria" -> {
