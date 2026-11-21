@@ -41,7 +41,7 @@ jobs:
         run: |
           APP="build/LEVVER VPN UTILITY.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp .build/release/"LEVVER VPN UTILITY" "$APP/Contents/MacOS/LEVVER VPN UTILITY"
+          cp .build/release/LEVVERVPN "$APP/Contents/MacOS/LEVVER VPN UTILITY"
           cp sing-box "$APP/Contents/Resources/sing-box"
           chmod +x "$APP/Contents/Resources/sing-box"
           cat > "$APP/Contents/Info.plist" <<'PLIST'
