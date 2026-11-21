@@ -1,0 +1,71 @@
+name: LEVVER VPN UTILITY macOS
+
+on:
+  push:
+    branches: [levver-vpn-utility]
+    paths:
+      - 'levver-vpn-utility/macos/**'
+      - '.github/workflows/levver-vpn-macos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Build Swift app
+        working-directory: levver-vpn-utility/macos
+        run: swift build -c release
+
+      - name: Download sing-box core
+        working-directory: levver-vpn-utility/macos
+        run: |
+          curl -fL --retry 3 -o sing-box.tar.gz https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-darwin-arm64.tar.gz
+          mkdir core
+          tar -xzf sing-box.tar.gz -C core
+          CORE="$(find core -type f -name sing-box | head -n 1)"
+          test -n "$CORE"
+          chmod +x "$CORE"
+          cp "$CORE" sing-box
+
+      - name: Assemble app bundle
+        working-directory: levver-vpn-utility/macos
+        run: |
+          APP="build/LEVVER VPN UTILITY.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp .build/release/"LEVVER VPN UTILITY" "$APP/Contents/MacOS/LEVVER VPN UTILITY"
+          cp sing-box "$APP/Contents/Resources/sing-box"
+          chmod +x "$APP/Contents/Resources/sing-box"
+          cat > "$APP/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>LEVVER VPN UTILITY</string>
+            <key>CFBundleDisplayName</key><string>LEVVER VPN UTILITY</string>
+            <key>CFBundleIdentifier</key><string>com.levver.vpn.macos</string>
+            <key>CFBundleVersion</key><string>1.0.0</string>
+            <key>CFBundleShortVersionString</key><string>1.0.0</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSMinimumSystemVersion</key><string>13.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+          </dict></plist>
+          PLIST
+          codesign --force --deep --sign - "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" build/LEVVER-VPN-UTILITY-1.0.0-macOS-AppleSilicon.zip
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: LEVVER-VPN-UTILITY-1.0.0-macOS-AppleSilicon
+          path: levver-vpn-utility/macos/build/LEVVER-VPN-UTILITY-1.0.0-macOS-AppleSilicon.zip
+          if-no-files-found: error
+          retention-days: 14
